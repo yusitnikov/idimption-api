@@ -8,13 +8,13 @@ class User extends BaseEntity
      * @var string
      * @additionalInfoField
      */
-    public $id;
+    public $id = '';
 
     /**
      * @var string
      * @displayField
      */
-    public $name;
+    public $name = '';
 
     public function __construct()
     {
