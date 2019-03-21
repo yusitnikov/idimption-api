@@ -1,0 +1,22 @@
+{
+    "name": "yusitnikov/idimption-api",
+    "type": "project",
+    "require": {
+        "php": "^7.0",
+        "ext-mysqli": "*",
+        "ext-json": "*"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "yusitnikov",
+            "email": "y.sitnikoff@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Idimption\\": "src/"
+        }
+    },
+    "minimum-stability": "stable"
+}
