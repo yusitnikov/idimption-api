@@ -16,8 +16,20 @@ class User extends BaseEntity
      */
     public $name = '';
 
+    /**
+     * @var bool
+     * @readOnly
+     * @hook Ignore
+     */
+    public $verifiedEmail = false;
+
     public function __construct()
     {
         parent::__construct('user');
+    }
+
+    protected function getSelectionFieldsSql()
+    {
+        return 'id, name, verifiedEmail';
     }
 }

@@ -246,8 +246,7 @@ abstract class BaseEntity implements \JsonSerializable
 
     private function _add($disableHooks = false)
     {
-        $fieldNameSqlParts = [];
-        $fieldValueSqlParts = [];
+        $data = [];
 
         foreach ($this->getAllFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
@@ -258,19 +257,10 @@ abstract class BaseEntity implements \JsonSerializable
                 $hook->updateFieldValue();
             }
 
-            $fieldNameSqlParts[] = Db::escapeName($fieldName);
-            $fieldValueSqlParts[] = Db::escapeValue($this->$fieldName);
+            $data[$fieldName] = $this->$fieldName;
         }
 
-        Db::exec('
-            INSERT INTO ' . Db::escapeName($this->getTableName()) . '
-            (' . implode(', ', $fieldNameSqlParts) . ')
-            VALUES (' . implode(', ', $fieldValueSqlParts) . ')
-        ', [
-            'tableName' => $this->getTableName(),
-            'fields' => $fieldNameSqlParts,
-            'values' => $fieldValueSqlParts,
-        ]);
+        Db::insertRow($this->getTableName(), $data);
 
         foreach ($this->getAllFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
@@ -282,7 +272,6 @@ abstract class BaseEntity implements \JsonSerializable
 
     private function _update($disableHooks = false, $updateFields = [])
     {
-        $updateSqlParts = [];
         $updatesArray = [];
 
         foreach ($this->getAllFields() as $fieldName) {
@@ -304,22 +293,12 @@ abstract class BaseEntity implements \JsonSerializable
 
             if (!$isSkipped && !$isPrimaryKey) {
                 $value = $this->$fieldName;
-                $updateSqlParts[] = Db::escapeName($fieldName) . ' = ' . Db::escapeValue($value);
                 $updatesArray[$fieldName] = $value;
             }
         }
 
-        if ($updateSqlParts) {
-            /** @noinspection SqlResolve */
-            Db::exec('
-                UPDATE ' . Db::escapeName($this->getTableName()) . '
-                SET ' . implode(', ', $updateSqlParts) . '
-                WHERE id = ' . Db::escapeValue($this->id) . '
-            ', [
-                'tableName' => $this->getTableName(),
-                'updates' => $updatesArray,
-                'id' => $this->id,
-            ]);
+        if ($updatesArray) {
+            Db::updateRow($this->getTableName(), $this->id, $updatesArray);
         }
 
         foreach ($this->getAllFields() as $fieldName) {
@@ -333,15 +312,7 @@ abstract class BaseEntity implements \JsonSerializable
 
     private function _delete()
     {
-        /** @noinspection SqlResolve */
-        Db::exec('
-          DELETE
-          FROM ' . Db::escapeName($this->getTableName()) . '
-          WHERE id = ' . Db::escapeValue($this->id) . '
-        ', [
-            'tableName' => $this->getTableName(),
-            'id' => $this->id,
-        ]);
+        Db::deleteRow($this->getTableName(), $this->id);
     }
 
     public function delete()

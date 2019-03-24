@@ -161,6 +161,61 @@ class Db
         self::dbLog('DB', $logData);
     }
 
+    public static function insertRow($tableName, $data)
+    {
+        $fieldNameSqlParts = [];
+        $fieldValueSqlParts = [];
+
+        foreach ($data as $fieldName => $fieldValue) {
+            $fieldNameSqlParts[] = self::escapeName($fieldName);
+            $fieldValueSqlParts[] = self::escapeValue($fieldValue);
+        }
+
+        self::exec('
+            INSERT INTO ' . self::escapeName($tableName) . '
+            (' . implode(', ', $fieldNameSqlParts) . ')
+            VALUES (' . implode(', ', $fieldValueSqlParts) . ')
+        ', [
+            'tableName' => $tableName,
+            'data' => $data,
+        ]);
+    }
+
+    public static function updateRow($tableName, $id, $data)
+    {
+        $updateSqlParts = [];
+
+        foreach ($data as $fieldName => $fieldValue) {
+            $updateSqlParts[] = self::escapeName($fieldName) . ' = ' . self::escapeValue($fieldValue);
+        }
+
+        if ($updateSqlParts) {
+            /** @noinspection SqlResolve */
+            self::exec('
+                UPDATE ' . self::escapeName($tableName) . '
+                SET ' . implode(', ', $updateSqlParts) . '
+                WHERE id = ' . self::escapeValue($id) . '
+            ', [
+                'tableName' => $tableName,
+                'updates' => $data,
+                'id' => $id,
+            ]);
+        }
+    }
+
+    public static function deleteRow($tableName, $id)
+    {
+        /** @noinspection SqlResolve */
+        self::exec('
+          DELETE
+          FROM ' . self::escapeName($tableName) . '
+          WHERE id = ' . self::escapeValue($id) . '
+        ', [
+            'tableName' => $tableName,
+            'id' => $id,
+        ]);
+    }
+
     /**
      * @return int|null
      */
