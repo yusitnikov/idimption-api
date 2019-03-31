@@ -43,6 +43,13 @@ class User extends BaseEntity
      */
     public $verificationCode;
 
+    /**
+     * @var bool
+     * @readOnly
+     * @hook Ignore
+     */
+    public $isAdmin = false;
+
     public function __construct()
     {
         parent::__construct('user');
@@ -50,7 +57,7 @@ class User extends BaseEntity
 
     public function getVisibleFields()
     {
-        return ['id', 'name', 'avatarUrl', 'passwordHash', 'verifiedEmail'];
+        return ['id', 'name', 'avatarUrl', 'passwordHash', 'verifiedEmail', 'isAdmin'];
     }
 
     public function save($action, $disableHooks = false, $updateFields = [])

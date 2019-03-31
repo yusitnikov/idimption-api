@@ -27,8 +27,7 @@ class ForeignUserIdFieldHook extends BaseFieldHook
             }
         }
 
-        $userId = Auth::getLoggedInUserId();
-        if (!$userId || $foreignRow->userId !== $userId) {
+        if (!Auth::canEditUsersData($foreignRow->userId)) {
             throw new AccessDeniedException('Access denied');
         }
     }

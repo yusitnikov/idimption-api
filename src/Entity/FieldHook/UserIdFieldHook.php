@@ -16,11 +16,8 @@ class UserIdFieldHook extends BaseFieldHook
 
     public function validate()
     {
-        if ($this->_action !== EntityUpdateAction::INSERT) {
-            $userId = Auth::getLoggedInUserId();
-            if (!$userId || $this->_currentFieldValue !== $userId) {
-                throw new AccessDeniedException('Access denied');
-            }
+        if ($this->_action !== EntityUpdateAction::INSERT && !Auth::canEditUsersData($this->_currentFieldValue)) {
+            throw new AccessDeniedException('Access denied');
         }
     }
 

@@ -64,6 +64,17 @@ class Auth
         return $user && $user->verifiedEmail;
     }
 
+    public static function isAdmin()
+    {
+        $user = self::getLoggedInUser();
+        return $user && $user->verifiedEmail && $user->isAdmin;
+    }
+
+    public static function canEditUsersData($userId)
+    {
+        return self::isAdmin() || self::isVerifiedEmail() && self::getLoggedInUserId() === $userId;
+    }
+
     public static function setLoggedInUserId($userId)
     {
         self::_initSession();

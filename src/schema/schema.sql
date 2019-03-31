@@ -6,6 +6,7 @@ CREATE TABLE user
   passwordHash VARCHAR(40) DEFAULT NULL,
   verifiedEmail BOOLEAN DEFAULT FALSE,
   verificationCode VARCHAR(40) DEFAULT NULL,
+  isAdmin BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 
