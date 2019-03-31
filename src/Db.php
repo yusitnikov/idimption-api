@@ -2,6 +2,8 @@
 
 namespace Idimption;
 
+use Idimption\Exception\DbException;
+
 class Db
 {
     /**
@@ -24,7 +26,7 @@ class Db
 
     private function __construct()
     {
-        $config = require(__DIR__ . '/../config/db-config.php');
+        $config = App::getInstance()->getConfig('db');
         $this->_log = fopen(__DIR__ . '/../logs/db.log', 'ab');
         $this->_mysqli = mysqli_init();
         $this->_mysqli->connect(
@@ -51,14 +53,14 @@ class Db
     /**
      * @param string|null $message
      * @param int|null $code
-     * @return \Exception
+     * @return DbException
      */
     private static function _exception($message = null, $code = null)
     {
         $message = $message ?? self::_mysqli()->error;
         $code = $code ?? self::_mysqli()->errno;
         self::_log("Error: $message");
-        return new \Exception($message, $code);
+        return new DbException($message, $code);
     }
 
     /**
@@ -73,6 +75,8 @@ class Db
     {
         if ($value === null) {
             return 'NULL';
+        } elseif (is_bool($value)) {
+            return $value ? 'TRUE' : 'FALSE';
         } elseif (is_array($value)) {
             $value = json_encode($value);
         }
@@ -87,7 +91,7 @@ class Db
     /**
      * @param string $sql
      * @return \mysqli_result|bool
-     * @throws \Exception
+     * @throws DbException
      */
     private static function _query($sql)
     {
@@ -111,7 +115,7 @@ class Db
      * @param string $sql
      * @param bool $assoc
      * @return array[]
-     * @throws \Exception
+     * @throws DbException
      */
     public static function select($sql, $assoc = true)
     {
@@ -129,7 +133,7 @@ class Db
      * Just executes the query, without any additional hooks
      *
      * @param string $sql
-     * @throws \Exception
+     * @throws DbException
      */
     private static function _internalExec($sql)
     {
@@ -142,7 +146,7 @@ class Db
     /**
      * @param string $sql
      * @param array $logData
-     * @throws \Exception
+     * @throws DbException
      */
     public static function exec($sql, $logData = [])
     {
@@ -254,7 +258,7 @@ class Db
               ' . self::escapeValue($app->getSessionId()) . ',
               ' . self::escapeValue($app->getUri()) . ',
               ' . self::escapeValue($app->getParams()) . ',
-              ' . self::escapeValue($app->getUserId()) . ',
+              ' . self::escapeValue(Auth::getLoggedInUserId()) . ',
               ' . self::escapeValue($type) . ',
               ' . self::escapeValue($data) . '
             )

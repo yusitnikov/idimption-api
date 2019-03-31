@@ -2,7 +2,9 @@
 
 namespace Idimption\Entity;
 
+use Idimption\Auth;
 use Idimption\Db;
+use Idimption\Exception\BadRequestException;
 
 class AllEntities
 {
@@ -84,23 +86,28 @@ class AllEntities
                 $row = $transition['row'] ?? null;
 
                 if (!$action) {
-                    throw new \Exception('Missing type parameter in transaction #' . $index);
+                    throw new BadRequestException('Missing type parameter in transaction #' . $index);
                 }
                 if (!EntityUpdateAction::isAllowedAction($action)) {
-                    throw new \Exception('Unrecognized type in transaction #' . $index . ': ' . $action);
+                    throw new BadRequestException('Unrecognized type in transaction #' . $index . ': ' . $action);
                 }
                 if (!$tableName) {
-                    throw new \Exception('Missing tableName parameter in transaction #' . $index);
+                    throw new BadRequestException('Missing tableName parameter in transaction #' . $index);
                 }
                 if (!is_array($row)) {
-                    throw new \Exception('Missing row parameter in transaction #' . $index);
+                    throw new BadRequestException('Missing row parameter in transaction #' . $index);
                 }
 
                 $row = $guidMap->substitute($row);
 
                 $model = self::getModelByTableName($tableName);
                 if (!$model) {
-                    throw new \Exception('Unrecognized tableName in transaction #' . $index . ': ' . $tableName);
+                    throw new BadRequestException('Unrecognized tableName in transaction #' . $index . ': ' . $tableName);
+                }
+                if (!Auth::getLoggedInUser()) {
+                    if ($action !== EntityUpdateAction::INSERT || !$model->allowAnonymousCreate()) {
+                        throw new BadRequestException('Anonymous access not allowed');
+                    }
                 }
                 $rowObject = $model::fromJson($row);
                 $rowObject->setGuidMap($guidMap);

@@ -2,8 +2,11 @@
 
 namespace Idimption;
 
+use Idimption\Exception\BadRequestException;
+
 class App
 {
+    private $_config;
     private $_sessionId;
     private $_startTime;
     private $_log;
@@ -16,6 +19,7 @@ class App
 
     private function __construct()
     {
+        $this->_config = require(__DIR__ . '/../config/config.php');
         $this->_sessionId = mt_rand();
         $this->_startTime = microtime(true);
         $this->_log = fopen(__DIR__ . '/../logs/app.log', 'ab');
@@ -24,6 +28,15 @@ class App
     public function __destruct()
     {
         fclose($this->_log);
+    }
+
+    public function getConfig(...$fieldNames)
+    {
+        $config = $this->_config;
+        foreach ($fieldNames as $fieldName) {
+            $config = $config[$fieldName] ?? null;
+        }
+        return $config;
     }
 
     public function getSessionId()
@@ -42,6 +55,11 @@ class App
     {
         $prefix = $this->getLogPrefix();
         fwrite($this->_log, "$prefix $message\n");
+    }
+
+    public function getFrontEndUri($uri = '')
+    {
+        return $this->getConfig('frontEndUri') . $uri;
     }
 
     public function getUri()
@@ -69,7 +87,7 @@ class App
     {
         $value = $this->getParams()[$name] ?? null;
         if ($mandatory && $value === null) {
-            throw new \Exception('Missing ' . $name . ' parameter');
+            throw new BadRequestException('Missing ' . $name . ' parameter');
         }
         if ($acceptedFormats) {
             $acceptedFormats = (array)$acceptedFormats;
@@ -77,16 +95,10 @@ class App
                 $acceptedFormats[] = 'NULL';
             }
             if (!in_array(gettype($value), $acceptedFormats)) {
-                throw new \Exception($name . ' parameter should be ' . implode(' or ', $acceptedFormats));
+                throw new BadRequestException($name . ' parameter should be ' . implode(' or ', $acceptedFormats));
             }
         }
         return $value;
-    }
-
-    public function getUserId()
-    {
-        // TODO: implement auth
-        return $this->getParam('userId');
     }
 
     public function run($callback)

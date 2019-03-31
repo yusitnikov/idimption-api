@@ -2,6 +2,10 @@ CREATE TABLE user
 (
   id VARCHAR(255) NOT NULL,
   name TEXT NOT NULL,
+  avatarUrl TEXT DEFAULT NULL,
+  passwordHash VARCHAR(40) DEFAULT NULL,
+  verifiedEmail BOOLEAN DEFAULT FALSE,
+  verificationCode VARCHAR(40) DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
 

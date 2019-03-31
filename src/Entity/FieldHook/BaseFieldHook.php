@@ -14,7 +14,10 @@ abstract class BaseFieldHook
     protected $_fieldName;
 
     /** @var mixed */
-    protected $_fieldValue;
+    protected $_newFieldValue;
+
+    /** @var mixed */
+    protected $_currentFieldValue;
 
     /** @var EntityUpdateAction|string */
     protected $_action;
@@ -30,8 +33,27 @@ abstract class BaseFieldHook
     {
         $this->_row = $row;
         $this->_fieldName = $fieldName;
-        $this->_fieldValue =& $row->$fieldName;
+        $this->_newFieldValue =& $row->$fieldName;
+        if ($action !== EntityUpdateAction::INSERT) {
+            $this->_currentFieldValue = $row::getInstance()->getRowById($row->id)->$fieldName;
+        }
         $this->_action = $action;
+    }
+
+    /**
+     * @return BaseEntity
+     */
+    protected function _getEntityModel()
+    {
+        return $this->_row::getInstance();
+    }
+
+    /**
+     * @return array
+     */
+    protected function _getFieldInfo()
+    {
+        return $this->_getEntityModel()->getFieldInfo($this->_fieldName);
     }
 
     /**
@@ -40,6 +62,10 @@ abstract class BaseFieldHook
      */
     public abstract function isActionSupported($isSkipped = false);
 
+    public function validate()
+    {
+    }
+
     public function shouldSkipField()
     {
         return false;
@@ -47,6 +73,7 @@ abstract class BaseFieldHook
 
     public function updateFieldValue()
     {
+        return false;
     }
 
     public function updateFieldValueAfterSave()

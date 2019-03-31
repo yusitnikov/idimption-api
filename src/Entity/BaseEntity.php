@@ -46,6 +46,11 @@ abstract class BaseEntity implements \JsonSerializable
         $this->_viewName = $viewName ?? $tableName;
     }
 
+    public function allowAnonymousCreate()
+    {
+        return false;
+    }
+
     public function getGuidMap()
     {
         return $this->_guidMap;
@@ -77,10 +82,11 @@ abstract class BaseEntity implements \JsonSerializable
      */
     public function getAllRows()
     {
+        /** @noinspection SqlResolve */
         $sql = "
             SELECT *
             FROM " . Db::escapeName($this->_viewName) . "
-            " . (in_array('id', $this->getAllFields()) ? 'ORDER BY id' : '') . "
+            ORDER BY id
         ";
         return $this->_allRowsCache = $this->_allRowsCache ?? array_map([get_class($this), 'fromJson'], Db::select($sql));
     }
@@ -134,6 +140,31 @@ abstract class BaseEntity implements \JsonSerializable
         );
     }
 
+    /**
+     * @return string[]
+     */
+    public function getVisibleFields()
+    {
+        return $this->getAllFields();
+    }
+
+    /**
+     * @param array $info
+     * @return BaseEntity|null
+     */
+    private function _getForeignModelByFieldInfo($info)
+    {
+        if (isset($info['foreignClass'])) {
+            /** @var self|string $foreignKeyClassName */
+            $foreignKeyClassName = $info['foreignClass'] === 'static'
+                ? get_class($this)
+                : __NAMESPACE__ . '\\' . $info['foreignClass'];
+            return $foreignKeyClassName::getInstance();
+        } else {
+            return null;
+        }
+    }
+
     public function getFieldInfo($fieldName)
     {
         $info = [];
@@ -152,19 +183,23 @@ abstract class BaseEntity implements \JsonSerializable
             $info['optional'] = true;
         }
 
-        if (isset($info['foreignClass'])) {
-            /** @var self|string $foreignKeyClassName */
-            $foreignKeyClassName = $info['foreignClass'] === 'static' ? get_class($this) : __NAMESPACE__ . '\\' . $info['foreignClass'];
-            $info['foreignTable'] = $foreignKeyClassName::getInstance()->getTableName();
+        $foreignModel = $this->_getForeignModelByFieldInfo($info);
+        if ($foreignModel) {
+            $info['foreignTable'] = $foreignModel->getTableName();
         }
 
         return $info;
     }
 
+    public function getForeignModel($fieldName)
+    {
+        return $this->_getForeignModelByFieldInfo($this->getFieldInfo($fieldName));
+    }
+
     public function getFieldsInfo()
     {
         $result = [];
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $result[$fieldName] = $this->getFieldInfo($fieldName);
         }
         return $result;
@@ -175,7 +210,7 @@ abstract class BaseEntity implements \JsonSerializable
         return [
             'tableName' => $this->_tableName,
             'className' => get_class($this),
-            'fields' => $this->getAllFields(),
+            'fields' => $this->getVisibleFields(),
             'fieldsInfo' => $this->getFieldsInfo(),
         ];
     }
@@ -186,7 +221,7 @@ abstract class BaseEntity implements \JsonSerializable
     public function toArray()
     {
         $result = [];
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $result[$fieldName] = $this->$fieldName;
         }
         return $result;
@@ -248,9 +283,10 @@ abstract class BaseEntity implements \JsonSerializable
     {
         $data = [];
 
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
             if ($hook) {
+                $hook->validate();
                 if ($hook->shouldSkipField()) {
                     continue;
                 }
@@ -262,7 +298,7 @@ abstract class BaseEntity implements \JsonSerializable
 
         Db::insertRow($this->getTableName(), $data);
 
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
             if ($hook) {
                 $hook->updateFieldValueAfterSave();
@@ -270,30 +306,40 @@ abstract class BaseEntity implements \JsonSerializable
         }
     }
 
+    public function add()
+    {
+        $this->_add();
+        AllEntities::clearCache();
+    }
+
     private function _update($disableHooks = false, $updateFields = [])
     {
         $updatesArray = [];
 
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $fieldInfo = $this->getFieldInfo($fieldName);
-            $isPrimaryKey = $fieldName === 'id';
-            if (isset($fieldInfo['readOnly']) && !$isPrimaryKey) {
-                continue;
-            }
             $isSkipped = $updateFields && !in_array($fieldName, $updateFields);
 
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::UPDATE, $isSkipped);
             if ($hook) {
+                $hook->validate();
+            }
+
+            if (isset($fieldInfo['readOnly'])) {
+                continue;
+            }
+
+            if ($hook) {
                 if ($hook->shouldSkipField()) {
                     continue;
                 }
-                $hook->updateFieldValue();
-                $isSkipped = false;
+                if ($hook->updateFieldValue()) {
+                    $isSkipped = false;
+                }
             }
 
-            if (!$isSkipped && !$isPrimaryKey) {
-                $value = $this->$fieldName;
-                $updatesArray[$fieldName] = $value;
+            if (!$isSkipped) {
+                $updatesArray[$fieldName] = $this->$fieldName;
             }
         }
 
@@ -301,7 +347,7 @@ abstract class BaseEntity implements \JsonSerializable
             Db::updateRow($this->getTableName(), $this->id, $updatesArray);
         }
 
-        foreach ($this->getAllFields() as $fieldName) {
+        foreach ($this->getVisibleFields() as $fieldName) {
             $isSkipped = $updateFields && !in_array($fieldName, $updateFields);
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::UPDATE, $isSkipped);
             if ($hook) {
@@ -310,8 +356,15 @@ abstract class BaseEntity implements \JsonSerializable
         }
     }
 
-    private function _delete()
+    private function _delete($disableHooks = false)
     {
+        foreach ($this->getVisibleFields() as $fieldName) {
+            $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::DELETE);
+            if ($hook) {
+                $hook->validate();
+            }
+        }
+
         Db::deleteRow($this->getTableName(), $this->id);
     }
 
@@ -336,7 +389,7 @@ abstract class BaseEntity implements \JsonSerializable
                 $this->_update($disableHooks, $updateFields);
                 break;
             case EntityUpdateAction::DELETE:
-                $this->_delete();
+                $this->_delete($disableHooks);
                 break;
         }
 

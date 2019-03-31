@@ -19,8 +19,8 @@ class AutoIncrementFieldHook extends BaseFieldHook
 
     public function updateFieldValueAfterSave()
     {
-        $guid = $this->_fieldValue;
-        $this->_fieldValue = $id = (string)Db::getInsertedId();
+        $guid = $this->_newFieldValue;
+        $this->_newFieldValue = $id = (string)Db::getInsertedId();
         $guidMap = $this->_row->getGuidMap();
         if ($guidMap) {
             $guidMap->add($guid, $id);

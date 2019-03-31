@@ -2,7 +2,10 @@
 
 namespace Idimption\Entity\FieldHook;
 
-use Idimption\App;
+use Idimption\Auth;
+use Idimption\Entity\EntityUpdateAction;
+use Idimption\Entity\User;
+use Idimption\Exception\AccessDeniedException;
 
 class UserIdFieldHook extends BaseFieldHook
 {
@@ -11,8 +14,23 @@ class UserIdFieldHook extends BaseFieldHook
         return true;
     }
 
+    public function validate()
+    {
+        if ($this->_action !== EntityUpdateAction::INSERT) {
+            $userId = Auth::getLoggedInUserId();
+            if (!$userId || $this->_currentFieldValue !== $userId) {
+                throw new AccessDeniedException('Access denied');
+            }
+        }
+    }
+
     public function updateFieldValue()
     {
-        $this->_fieldValue = App::getInstance()->getUserId();
+        if ($this->_row instanceof User) {
+            return false;
+        } else {
+            $this->_newFieldValue = Auth::getLoggedInUserId();
+            return true;
+        }
     }
 }

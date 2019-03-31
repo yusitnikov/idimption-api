@@ -7,8 +7,14 @@ trait IdeaIdFieldTrait
     /**
      * @var int
      * @foreignClass Idea
+     * @hook ForeignUserId
      */
     public $ideaId;
+
+    public function allowAnonymousCreate()
+    {
+        return true;
+    }
 
     /**
      * @return Idea
