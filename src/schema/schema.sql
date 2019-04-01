@@ -43,6 +43,7 @@ CREATE TABLE idea
   userId VARCHAR(255) DEFAULT NULL,
   referenceId VARCHAR(255) DEFAULT NULL,
   statusId BIGINT NOT NULL,
+  priority DOUBLE DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY (referenceId),
   KEY (userId),
