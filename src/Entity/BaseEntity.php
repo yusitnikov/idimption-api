@@ -241,7 +241,12 @@ abstract class BaseEntity implements \JsonSerializable
     public function jsonUnserialize($array)
     {
         foreach ($this->getAllFields() as $fieldName) {
-            $this->$fieldName = $array[$fieldName] ?? null;
+            $value = $array[$fieldName] ?? null;
+            $type = $this->getFieldInfo($fieldName)['var'];
+            if ($type === 'bool') {
+                $value = (bool)$value;
+            }
+            $this->$fieldName = $value;
         }
     }
 
