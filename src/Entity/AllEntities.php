@@ -55,10 +55,7 @@ class AllEntities
             foreach ($schema['fieldsInfo'] as $fieldName => $fieldInfo) {
                 if (isset($fieldInfo['foreignTable'])) {
                     $foreignTable = $fieldInfo['foreignTable'];
-                    $schemaMap[$foreignTable]['foreignKeys'][] = [
-                        'tableName' => $tableName,
-                        'fieldName' => $fieldName,
-                    ];
+                    $schemaMap[$foreignTable]['foreignKeys'][$tableName] = $fieldName;
                 }
             }
         }
