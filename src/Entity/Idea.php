@@ -15,4 +15,11 @@ class Idea extends BaseEntity
     {
         parent::__construct('idea');
     }
+
+    public function toArray()
+    {
+        $result = parent::toArray();
+        $result['priority'] = $this->priority ?? $this->id;
+        return $result;
+    }
 }
