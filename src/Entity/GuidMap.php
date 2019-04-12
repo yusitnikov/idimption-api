@@ -2,7 +2,9 @@
 
 namespace Idimption\Entity;
 
-class GuidMap implements \JsonSerializable
+use JsonSerializable;
+
+class GuidMap implements JsonSerializable
 {
     private $_map = [];
 

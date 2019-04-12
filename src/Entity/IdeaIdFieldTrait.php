@@ -7,7 +7,7 @@ trait IdeaIdFieldTrait
     /**
      * @var int
      * @foreignClass Idea
-     * @hook ForeignUserId
+     * @hook IdeaId
      */
     public $ideaId;
 
@@ -39,15 +39,5 @@ trait IdeaIdFieldTrait
     public function getRowsByIdeaId($ideaId)
     {
         return $this->getAllRowsByIdeaId()[$ideaId] ?? [];
-    }
-
-    /**
-     * @param int $ideaId
-     * @param static[] $newRows
-     */
-    public function syncRowsByIdeaId($ideaId, $newRows)
-    {
-        $existingRows = $this->getRowsByIdeaId($ideaId);
-        // TODO
     }
 }

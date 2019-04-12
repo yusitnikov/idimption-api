@@ -9,7 +9,7 @@ class IdeaRelation extends BaseEntity
     /**
      * @var int
      * @foreignClass Idea
-     * @hook ForeignUserId
+     * @hook IdeaId
      */
     public $dstIdeaId;
 

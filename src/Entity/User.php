@@ -60,12 +60,12 @@ class User extends BaseEntity
         return ['id', 'name', 'avatarUrl', 'passwordHash', 'verifiedEmail', 'isAdmin'];
     }
 
-    public function save($action, $disableHooks = false, $updateFields = [])
+    public function save($action, $disableHooks = false, $updateFields = [], $log = true)
     {
         if (in_array('password', $updateFields)) {
             $updateFields[] = 'passwordHash';
         }
-        parent::save($action, $disableHooks, $updateFields);
+        parent::save($action, $disableHooks, $updateFields, $log);
     }
 
     public function jsonUnserialize($array)

@@ -36,7 +36,7 @@ App::getInstance()->run(function() {
     $fileDir = sha1(Auth::getLoggedInUserId()) . '/';
     $fullDir = $rootDir . $fileDir;
     @mkdir($fullDir);
-    $fileName = $fileDir . time() . '.' . $extension;
+    $fileName = $fileDir . App::getInstance()->getStartTime() . '.' . $extension;
     move_uploaded_file($file['tmp_name'], $rootDir . $fileName);
     return $fileName;
 });

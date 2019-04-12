@@ -2,7 +2,9 @@
 
 namespace Idimption\Exception;
 
-class HttpException extends \Exception
+use Exception;
+
+class HttpException extends Exception
 {
     public function __construct($message = 'Internal server error', $code = 500)
     {

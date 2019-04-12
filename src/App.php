@@ -3,6 +3,7 @@
 namespace Idimption;
 
 use Idimption\Exception\BadRequestException;
+use Throwable;
 
 class App
 {
@@ -101,6 +102,11 @@ class App
         return $value;
     }
 
+    public function getStartTime()
+    {
+        return (int)$this->_startTime;
+    }
+
     public function run($callback)
     {
         header('X-Api-Session-Id: ' . $this->_sessionId);
@@ -111,7 +117,7 @@ class App
             $result = call_user_func($callback);
             $error = null;
             $success = true;
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $result = null;
             $error = [
                 'code' => $exception->getCode(),

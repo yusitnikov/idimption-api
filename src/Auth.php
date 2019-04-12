@@ -3,7 +3,6 @@
 namespace Idimption;
 
 use Idimption\Entity\User;
-use Idimption\Exception\AccessDeniedException;
 use Idimption\Exception\BadRequestException;
 
 class Auth

@@ -2,6 +2,8 @@
 
 namespace Idimption\Exception;
 
-class DbException extends \Exception
+use Exception;
+
+class DbException extends Exception
 {
 }

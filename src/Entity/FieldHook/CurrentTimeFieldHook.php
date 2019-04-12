@@ -2,6 +2,8 @@
 
 namespace Idimption\Entity\FieldHook;
 
+use Idimption\App;
+
 class CurrentTimeFieldHook extends BaseFieldHook
 {
     public function isActionSupported($isSkipped = false)
@@ -11,7 +13,7 @@ class CurrentTimeFieldHook extends BaseFieldHook
 
     public function updateFieldValue()
     {
-        $this->_newFieldValue = time();
+        $this->_newFieldValue = App::getInstance()->getStartTime();
         return true;
     }
 }

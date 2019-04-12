@@ -5,6 +5,7 @@ namespace Idimption\Entity;
 use Idimption\Auth;
 use Idimption\Db;
 use Idimption\Exception\BadRequestException;
+use ReflectionClass;
 
 class AllEntities
 {
@@ -21,7 +22,7 @@ class AllEntities
                 if (substr($fileName, -4) === '.php') {
                     /** @var BaseEntity|string $className */
                     $className = __NAMESPACE__ . '\\' . substr($fileName, 0, -4);
-                    $reflection = new \ReflectionClass($className);
+                    $reflection = new ReflectionClass($className);
                     if (!$reflection->isAbstract() && $reflection->isSubclassOf(BaseEntity::class)) {
                         $instance = $className::getInstance();
                         $models[$instance->getTableName()] = $instance;

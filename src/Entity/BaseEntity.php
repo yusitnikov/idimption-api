@@ -5,8 +5,11 @@ namespace Idimption\Entity;
 use Idimption\Db;
 use Idimption\Entity\FieldHook\BaseFieldHook;
 use Idimption\Map;
+use JsonSerializable;
+use ReflectionClass;
+use ReflectionProperty;
 
-abstract class BaseEntity implements \JsonSerializable
+abstract class BaseEntity implements JsonSerializable
 {
     /**
      * @return static
@@ -131,12 +134,12 @@ abstract class BaseEntity implements \JsonSerializable
      */
     public function getAllFields()
     {
-        $class = new \ReflectionClass($this);
+        $class = new ReflectionClass($this);
         return array_map(
-            function(\ReflectionProperty $property) {
+            function(ReflectionProperty $property) {
                 return $property->name;
             },
-            $class->getProperties(\ReflectionProperty::IS_PUBLIC)
+            $class->getProperties(ReflectionProperty::IS_PUBLIC)
         );
     }
 
@@ -168,7 +171,7 @@ abstract class BaseEntity implements \JsonSerializable
     public function getFieldInfo($fieldName)
     {
         $info = [];
-        $field = new \ReflectionProperty($this, $fieldName);
+        $field = new ReflectionProperty($this, $fieldName);
 
         // As long as it's a singleton instance, the current field value should be the default one
         $info['default'] = $field->getValue($this);
@@ -284,7 +287,7 @@ abstract class BaseEntity implements \JsonSerializable
         return null;
     }
 
-    private function _add($disableHooks = false)
+    private function _add($disableHooks = false, $log = true)
     {
         $data = [];
 
@@ -301,7 +304,7 @@ abstract class BaseEntity implements \JsonSerializable
             $data[$fieldName] = $this->$fieldName;
         }
 
-        Db::insertRow($this->getTableName(), $data);
+        Db::insertRow($this->getTableName(), $data, $log);
 
         foreach ($this->getVisibleFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
@@ -311,13 +314,13 @@ abstract class BaseEntity implements \JsonSerializable
         }
     }
 
-    public function add()
+    public function add($log = true)
     {
-        $this->_add();
+        $this->_add(false, $log);
         AllEntities::clearCache();
     }
 
-    private function _update($disableHooks = false, $updateFields = [])
+    private function _update($disableHooks = false, $updateFields = [], $log = true)
     {
         $updatesArray = [];
 
@@ -349,7 +352,7 @@ abstract class BaseEntity implements \JsonSerializable
         }
 
         if ($updatesArray) {
-            Db::updateRow($this->getTableName(), $this->id, $updatesArray);
+            Db::updateRow($this->getTableName(), $this->id, $updatesArray, $log);
         }
 
         foreach ($this->getVisibleFields() as $fieldName) {
@@ -361,7 +364,13 @@ abstract class BaseEntity implements \JsonSerializable
         }
     }
 
-    private function _delete($disableHooks = false)
+    public function update($updateFields = [], $log = true)
+    {
+        $this->_update(false, $updateFields, $log);
+        AllEntities::clearCache();
+    }
+
+    private function _delete($disableHooks = false, $log = true)
     {
         foreach ($this->getVisibleFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::DELETE);
@@ -370,12 +379,12 @@ abstract class BaseEntity implements \JsonSerializable
             }
         }
 
-        Db::deleteRow($this->getTableName(), $this->id);
+        Db::deleteRow($this->getTableName(), $this->id, $log);
     }
 
-    public function delete()
+    public function delete($log = true)
     {
-        $this->_delete();
+        $this->_delete($log);
         AllEntities::clearCache();
     }
 
@@ -383,25 +392,25 @@ abstract class BaseEntity implements \JsonSerializable
      * @param EntityUpdateAction|string $action
      * @param bool $disableHooks
      * @param string[] $updateFields
+     * @param bool $log
      */
-    public function save($action, $disableHooks = false, $updateFields = [])
+    public function save($action, $disableHooks = false, $updateFields = [], $log = true)
     {
         switch ($action) {
             case EntityUpdateAction::INSERT:
-                $this->_add($disableHooks);
+                $this->_add($disableHooks, $log);
                 break;
             case EntityUpdateAction::UPDATE:
-                $this->_update($disableHooks, $updateFields);
+                $this->_update($disableHooks, $updateFields, $log);
                 break;
             case EntityUpdateAction::DELETE:
-                $this->_delete($disableHooks);
+                $this->_delete($disableHooks, $log);
                 break;
         }
 
         /*
          * TODO:
          * - get updated row from the DB
-         * - ignore read-only fields on update
          * - primary key fields could be changed on update, but they still should be part of the WHERE clause
          */
         AllEntities::clearCache();
