@@ -1,10 +1,16 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+TRUNCATE ideasubscription;
+TRUNCATE usersubscription;
+TRUNCATE tagsubscription;
+TRUNCATE categorysubscription;
+TRUNCATE ideavote;
 TRUNCATE idearelation;
 TRUNCATE relation;
 TRUNCATE ideatag;
 TRUNCATE tag;
 TRUNCATE ideacategory;
 TRUNCATE category;
+TRUNCATE ideacommentmention;
 TRUNCATE ideacomment;
 TRUNCATE idea;
 TRUNCATE ideastatus;
