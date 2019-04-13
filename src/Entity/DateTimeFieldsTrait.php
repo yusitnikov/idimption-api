@@ -2,6 +2,8 @@
 
 namespace Idimption\Entity;
 
+use Idimption\App;
+
 trait DateTimeFieldsTrait
 {
     /**
@@ -17,5 +19,13 @@ trait DateTimeFieldsTrait
      */
     public $updatedAt;
 
-    // TODO: automatically set on create/update
+    public function isJustCreated()
+    {
+        return (int)$this->createdAt === App::getInstance()->getStartTime();
+    }
+
+    public function isJustUpdated()
+    {
+        return (int)$this->updatedAt === App::getInstance()->getStartTime();
+    }
 }

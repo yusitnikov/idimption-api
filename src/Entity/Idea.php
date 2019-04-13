@@ -16,6 +16,11 @@ class Idea extends BaseEntity
         parent::__construct('idea');
     }
 
+    public function allowAnonymousCreate()
+    {
+        return true;
+    }
+
     public function toArray()
     {
         $result = parent::toArray();

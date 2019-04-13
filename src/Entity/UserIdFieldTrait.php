@@ -12,11 +12,6 @@ trait UserIdFieldTrait
      */
     public $userId;
 
-    public function allowAnonymousCreate()
-    {
-        return true;
-    }
-
     /**
      * @return User|null
      */

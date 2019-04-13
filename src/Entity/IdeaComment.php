@@ -4,10 +4,7 @@ namespace Idimption\Entity;
 
 class IdeaComment extends BaseEntity
 {
-    use ParentIdFieldTrait, UserIdFieldTrait, DateTimeFieldsTrait, IdeaIdFieldTrait
-    {
-        UserIdFieldTrait::allowAnonymousCreate insteadof IdeaIdFieldTrait;
-    }
+    use ParentIdFieldTrait, UserIdFieldTrait, DateTimeFieldsTrait, IdeaIdFieldTrait;
 
     /**
      * @var int

@@ -148,7 +148,13 @@ abstract class BaseEntity implements JsonSerializable
      */
     public function getVisibleFields()
     {
-        return $this->getAllFields();
+        return array_values(array_filter(
+            $this->getAllFields(),
+            function($fieldName) {
+                $fieldInfo = $this->getFieldInfo($fieldName);
+                return empty($fieldInfo['hidden']);
+            }
+        ));
     }
 
     /**
@@ -246,8 +252,15 @@ abstract class BaseEntity implements JsonSerializable
         foreach ($this->getAllFields() as $fieldName) {
             $value = $array[$fieldName] ?? null;
             $type = $this->getFieldInfo($fieldName)['var'];
-            if ($type === 'bool') {
-                $value = (bool)$value;
+            switch ($type) {
+                case 'bool':
+                    $value = (bool)$value;
+                    break;
+                case 'bool|null':
+                    if ($value !== null) {
+                        $value = (bool)$value;
+                    }
+                    break;
             }
             $this->$fieldName = $value;
         }

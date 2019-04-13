@@ -40,6 +40,7 @@ class User extends BaseEntity
 
     /**
      * @var string
+     * @hidden
      */
     public $verificationCode;
 
@@ -50,14 +51,66 @@ class User extends BaseEntity
      */
     public $isAdmin = false;
 
+
+    /**
+     * @var bool
+     */
+    public $subscribeToAll = false;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToAllNewIdeas = false;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToUpdatesInMyIdeas = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToUpdatesInIdeasWatching = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToCommentsOnMyIdeas = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToCommentsOnIdeasWatching = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToReplyComments = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToMentionComments = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToVotesInMyIdeas = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToWatchesInMyIdeas = true;
+
+    /**
+     * @var bool
+     */
+    public $subscribeToUnwatchesInMyIdeas = true;
+
+
     public function __construct()
     {
         parent::__construct('user');
-    }
-
-    public function getVisibleFields()
-    {
-        return ['id', 'name', 'avatarUrl', 'passwordHash', 'verifiedEmail', 'isAdmin'];
     }
 
     public function save($action, $disableHooks = false, $updateFields = [], $log = true)
