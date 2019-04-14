@@ -12,11 +12,6 @@ class PasswordHashFieldHook extends BaseFieldHook
         return !$isSkipped && !empty($this->_newFieldValue);
     }
 
-    public function shouldSkipField()
-    {
-        return $this->_action !== EntityUpdateAction::UPDATE;
-    }
-
     public function updateFieldValue()
     {
         $this->_newFieldValue = Auth::getPasswordHash($this->_newFieldValue);

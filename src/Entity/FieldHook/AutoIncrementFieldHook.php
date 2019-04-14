@@ -9,7 +9,7 @@ class AutoIncrementFieldHook extends BaseFieldHook
 {
     public function isActionSupported($isSkipped = false)
     {
-        return $this->_action === EntityUpdateAction::INSERT;
+        return true;
     }
 
     public function shouldSkipField()
@@ -19,11 +19,15 @@ class AutoIncrementFieldHook extends BaseFieldHook
 
     public function updateFieldValueAfterSave()
     {
-        $guid = $this->_newFieldValue;
-        $this->_newFieldValue = $id = (string)Db::getInsertedId();
-        $guidMap = $this->_row->getGuidMap();
-        if ($guidMap) {
-            $guidMap->add($guid, $id);
+        if ($this->_action === EntityUpdateAction::INSERT) {
+            $guid = $this->_newFieldValue;
+            $this->_newFieldValue = $id = (string)Db::getInsertedId();
+            if ($guid) {
+                $guidMap = $this->_row->getGuidMap();
+                if ($guidMap) {
+                    $guidMap->add($guid, $id);
+                }
+            }
         }
     }
 }

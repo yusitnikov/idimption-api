@@ -7,12 +7,19 @@ use Idimption\Db;
 class User extends BaseEntity
 {
     /**
+     * @var int
+     * @readOnly
+     * @hook UserIdKey
+     */
+    public $id;
+
+    /**
      * @var string
      * @readOnly
      * @additionalInfoField
-     * @hook UserId
+     * @hidden
      */
-    public $id = '';
+    public $email = '';
 
     /**
      * @var string
@@ -134,6 +141,15 @@ class User extends BaseEntity
         $json = parent::jsonSerialize();
         unset($json['passwordHash']);
         return $json;
+    }
+
+    /**
+     * @param string $email
+     * @return static|null
+     */
+    public function getRowByEmail($email)
+    {
+        return $this->getRowsMap(['email'])[$email] ?? null;
     }
 
     /**

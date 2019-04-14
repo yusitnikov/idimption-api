@@ -115,7 +115,7 @@ abstract class BaseEntity implements JsonSerializable
     }
 
     /**
-     * @param int|string $id
+     * @param int $id
      * @return static|null
      */
     public function getRowById($id)

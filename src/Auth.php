@@ -8,15 +8,17 @@ use Idimption\Exception\BadRequestException;
 class Auth
 {
     /**
-     * @param string $userId
+     * @param string $email
      * @return User
      * @throws BadRequestException
      */
-    private static function _getUserDataOrDie($userId)
+    private static function _getUserDataOrDie($email)
     {
-        $user = User::getInstance()->getRowById($userId);
+        $user = $email
+            ? User::getInstance()->getRowByEmail($email)
+            : self::getLoggedInUser();
         if (!$user) {
-            throw new BadRequestException('User not found: ' . $userId);
+            throw new BadRequestException('User not found: ' . $email);
         }
         return $user;
     }
@@ -80,27 +82,30 @@ class Auth
         $_SESSION['userId'] = $userId;
     }
 
-    public static function login($userId, $password)
+    public static function login($email, $password)
     {
         self::_initSession();
-        $user = self::_getUserDataOrDie($userId);
+        $user = self::_getUserDataOrDie($email);
         if ($user->passwordHash !== self::getPasswordHash($password)) {
             throw new BadRequestException('Wrong password');
         }
-        self::setLoggedInUserId($userId);
+        self::setLoggedInUserId($user->id);
+        return $user->id;
     }
 
-    public static function register($userId, $name, $password)
+    public static function register($email, $name, $password)
     {
         $user = new User();
-        $user->id = $userId;
+        $user->email = $email;
         $user->name = $name;
         $user->passwordHash = $password;
         $user->add();
 
-        self::setLoggedInUserId($userId);
+        self::setLoggedInUserId($user->id);
 
-        self::sendVerificationCode($userId);
+        self::sendVerificationCode($email);
+
+        return $user->id;
     }
 
     public static function logout()
@@ -108,11 +113,11 @@ class Auth
         self::setLoggedInUserId(null);
     }
 
-    public static function sendVerificationCode($userId, $resetPassword = false)
+    public static function sendVerificationCode($email, $resetPassword = false)
     {
-        $user = self::_getUserDataOrDie($userId);
+        $user = self::_getUserDataOrDie($email);
         $verificationCode = sha1(mt_rand());
-        App::getInstance()->log('Sending verification code for user ' . $userId . ', the code is ' . $verificationCode);
+        App::getInstance()->log('Sending verification code for user ' . $user->id . ' (' . $email . '), the code is ' . $verificationCode);
         $user->adminUpdate([
             'verificationCode' => $verificationCode,
         ]);
@@ -127,7 +132,7 @@ class Auth
                 <p>If you didn't register on Idimption with this email, then please just ignore this email.</p>
                 <p>Cheers,<br>Yura from Idimption.</p>
             ",
-            [$userId]
+            [$email]
         );
     }
 
@@ -137,7 +142,7 @@ class Auth
         if (!$user) {
             throw new BadRequestException('Verification code expired');
         }
-        App::getInstance()->log('Marking email as verified for user ' . $user->id);
+        App::getInstance()->log('Marking email as verified for user ' . $user->id . ' (' . $user->email . ')');
         $user->adminUpdate([
             'verifiedEmail' => true,
             'verificationCode' => null,
