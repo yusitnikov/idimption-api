@@ -65,7 +65,7 @@ class App
 
     public function getUri()
     {
-        return $_SERVER['REQUEST_URI'];
+        return PHP_SAPI === 'cli' ? $_SERVER['PHP_SELF'] : $_SERVER['REQUEST_URI'];
     }
 
     public function getParams()

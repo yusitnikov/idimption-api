@@ -25,7 +25,7 @@ class Auth
 
     private static function _initSession()
     {
-        static $done = false;
+        static $done = PHP_SAPI === 'cli';
         if (!$done) {
             session_start([
                 'use_cookies' => true,

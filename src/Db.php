@@ -141,6 +141,17 @@ class Db
     }
 
     /**
+     * @param string $sql
+     * @param bool $assoc
+     * @return array|null
+     * @throws DbException
+     */
+    public static function selectRow($sql, $assoc = true)
+    {
+        return self::select($sql, $assoc)[0] ?? null;
+    }
+
+    /**
      * Just executes the query, without any additional hooks
      *
      * @param string $sql

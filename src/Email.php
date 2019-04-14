@@ -40,9 +40,25 @@ class Email
         return App::getInstance()->getConfig('email', $fieldName) ?? $defaultValue;
     }
 
-    public static function send($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array())
+    public static function queue($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array())
+    {
+        return self::send($subject, $content, $toAddresses, $ccAddresses, $bccAddresses, true);
+    }
+
+    public static function send($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array(), $queue = false)
     {
         self::_log('Sending an email to ' . implode(', ', array_merge($toAddresses, $ccAddresses, $bccAddresses)) . ' about ' . $subject . '...');
+
+        if ($queue) {
+            Db::insertRow('emailqueue', [
+                'subject' => $subject,
+                'content' => $content,
+                'toAddresses' => $toAddresses,
+                'ccAddresses' => $ccAddresses,
+                'bccAddresses' => $bccAddresses,
+            ]);
+            return true;
+        }
 
         if (self::_config('disable')) {
             self::_log('Emails disabled, logging the content instead');

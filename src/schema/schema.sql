@@ -236,6 +236,18 @@ CREATE TABLE ideasubscription
 ) ENGINE=InnoDB;
 
 
+CREATE TABLE emailqueue
+(
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  subject TEXT NOT NULL,
+  content TEXT NOT NULL,
+  toAddresses JSON NOT NULL,
+  ccAddresses JSON DEFAULT NULL,
+  bccAddresses JSON DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+
 CREATE VIEW idearelationfull AS
 SELECT id, relationId, ideaId, dstIdeaId
 FROM idearelation
