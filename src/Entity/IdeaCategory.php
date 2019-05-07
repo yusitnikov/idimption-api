@@ -4,10 +4,10 @@ namespace Idimption\Entity;
 
 class IdeaCategory extends BaseEntity
 {
-    use RelationEntityTrait, IdeaIdFieldTrait, CategoryIdFieldTrait;
+    use IdeaIdParentFieldTrait, CategoryIdFieldTrait;
 
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('ideacategory');
+        parent::__construct($data, 'ideacategory');
     }
 }

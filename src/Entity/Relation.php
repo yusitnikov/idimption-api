@@ -16,9 +16,14 @@ class Relation extends BaseEntity
      */
     public $isDirect;
 
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('relation');
+        parent::__construct($data, 'relation');
+    }
+
+    public function getEntityName(User $recipient = null)
+    {
+        return 'relation type';
     }
 
     /**
@@ -27,5 +32,10 @@ class Relation extends BaseEntity
     public function getOpposite()
     {
         return $this->getRowById($this->oppositeId);
+    }
+
+    public function formatChange(RowChange $change, User $recipient)
+    {
+        return $this->formatCommonTextFieldsChange($change);
     }
 }

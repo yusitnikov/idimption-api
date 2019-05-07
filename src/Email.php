@@ -7,50 +7,37 @@ use PHPMailer\PHPMailer\PHPMailer;
 
 class Email
 {
-    /**
-     * @return self
-     */
-    private static function getInstance()
+    use SingletonWithMockTrait;
+
+    /** @var Logger */
+    protected $_log;
+
+    protected function init()
     {
-        static $instance = null;
-        return $instance = $instance ?: new self();
+        $this->_log = new Logger('email.log');
     }
 
-    /** @var resource */
-    private $_log;
-
-    private function __construct()
+    private function _log($message)
     {
-        $this->_log = fopen(__DIR__ . '/../logs/email.log', 'ab');
+        $this->_log->log($message);
     }
 
-    function __destruct()
-    {
-        fclose($this->_log);
-    }
-
-    private static function _log($message)
-    {
-        $prefix = App::getInstance()->getLogPrefix();
-        fwrite(self::getInstance()->_log, "$prefix $message\n");
-    }
-
-    private static function _config($fieldName, $defaultValue = null)
+    private function _config($fieldName, $defaultValue = null)
     {
         return App::getInstance()->getConfig('email', $fieldName) ?? $defaultValue;
     }
 
-    public static function queue($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array())
+    public function queue($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array())
     {
-        return self::send($subject, $content, $toAddresses, $ccAddresses, $bccAddresses, true);
+        return $this->send($subject, $content, $toAddresses, $ccAddresses, $bccAddresses, true);
     }
 
-    public static function send($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array(), $queue = false)
+    public function send($subject, $content, $toAddresses, $ccAddresses = array(), $bccAddresses = array(), $queue = false)
     {
-        self::_log('Sending an email to ' . implode(', ', array_merge($toAddresses, $ccAddresses, $bccAddresses)) . ' about ' . $subject . '...');
+        $this->_log('Sending an email to ' . implode(', ', array_merge($toAddresses, $ccAddresses, $bccAddresses)) . ' about ' . $subject . '...');
 
         if ($queue) {
-            Db::insertRow('emailqueue', [
+            Db::getInstance()->insertRow('emailqueue', [
                 'subject' => $subject,
                 'content' => $content,
                 'toAddresses' => $toAddresses,
@@ -60,25 +47,25 @@ class Email
             return true;
         }
 
-        if (self::_config('disable')) {
-            self::_log('Emails disabled, logging the content instead');
-            self::_log($content);
+        if ($this->_config('disable')) {
+            $this->_log('Emails disabled, logging the content instead');
+            $this->_log($content);
             return true;
         }
 
         $mail = new PHPMailer(true);
 
         try {
-            $mail->SMTPDebug = self::_config('debugLevel', 0);
+            $mail->SMTPDebug = $this->_config('debugLevel', 0);
 
             $mail->isSMTP();
-            $mail->Host = self::_config('host');
-            $mail->Port = self::_config('port');
+            $mail->Host = $this->_config('host');
+            $mail->Port = $this->_config('port');
             $mail->SMTPAuth = true;
-            $mail->Username = self::_config('login');
-            $mail->Password = self::_config('password');
-            $mail->SMTPSecure = self::_config('sslType');
-            if (!self::_config('verifySsl')) {
+            $mail->Username = $this->_config('login');
+            $mail->Password = $this->_config('password');
+            $mail->SMTPSecure = $this->_config('sslType');
+            if (!$this->_config('verifySsl')) {
                 $mail->SMTPOptions = array(
                     'ssl' => array(
                         'verify_peer' => false,
@@ -88,7 +75,7 @@ class Email
                 );
             }
 
-            $mail->setFrom(self::_config('fromEmail'), self::_config('fromName'));
+            $mail->setFrom($this->_config('fromEmail'), $this->_config('fromName'));
             foreach ($toAddresses as $emailAddress) {
                 $mail->addAddress($emailAddress);
             }
@@ -106,10 +93,10 @@ class Email
 
             $mail->send();
 
-            self::_log('Email sent successfully.');
+            $this->_log('Email sent successfully.');
             return true;
         } catch (PHPMailerException $exception) {
-            self::_log('Email send error: ' . $mail->ErrorInfo);
+            $this->_log('Email send error: ' . $mail->ErrorInfo);
             return $mail->ErrorInfo;
         }
     }

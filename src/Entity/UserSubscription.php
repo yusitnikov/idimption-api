@@ -4,22 +4,18 @@ namespace Idimption\Entity;
 
 class UserSubscription extends BaseEntity
 {
-    use UserIdFieldTrait;
+    use SubscriptionTrait;
 
     /**
-     * @var string
+     * @var int
      * @foreignClass User
+     * @displayField
      */
     public $dstUserId;
 
-    /**
-     * @var bool
-     */
-    public $included;
-
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('usersubscription');
+        parent::__construct($data, 'usersubscription');
     }
 
     /**

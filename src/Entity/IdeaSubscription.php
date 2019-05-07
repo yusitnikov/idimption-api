@@ -4,26 +4,34 @@ namespace Idimption\Entity;
 
 class IdeaSubscription extends BaseEntity
 {
-    use UserIdFieldTrait, IdeaIdFieldTrait;
+    use SubscriptionTrait, IdeaIdFieldTrait;
 
-    /**
-     * @var int
-     * @foreignClass Idea
-     */
-    public $ideaId;
-
-    /**
-     * @var bool
-     */
-    public $included;
-
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('ideasubscription');
+        parent::__construct($data, 'ideasubscription');
     }
 
     public function allowAnonymousCreate()
     {
         return false;
+    }
+
+    public function getNotificationReason(RowChange $change, User $recipient)
+    {
+        if ($this->getIdea()->userId === $recipient->id) {
+            /** @var static $updatedRow */
+            $updatedRow = $change->getUpdatedRow();
+            if ($recipient->subscribeToWatchesInMyIdeas && $updatedRow->included === true) {
+                return 'you are subscribed to subscriptions to your ideas';
+            }
+
+            /** @var static $originalRow */
+            $originalRow = $change->getOriginalRow();
+            if ($recipient->subscribeToUnwatchesInMyIdeas && $originalRow->included === true) {
+                return 'you are subscribed to un-subscriptions from your ideas';
+            }
+        }
+
+        return null;
     }
 }

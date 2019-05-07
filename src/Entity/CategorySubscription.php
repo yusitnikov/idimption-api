@@ -4,15 +4,10 @@ namespace Idimption\Entity;
 
 class CategorySubscription extends BaseEntity
 {
-    use UserIdFieldTrait, CategoryIdFieldTrait;
+    use SubscriptionTrait, CategoryIdFieldTrait;
 
-    /**
-     * @var bool|null
-     */
-    public $included;
-
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('categorysubscription');
+        parent::__construct($data, 'categorysubscription');
     }
 }

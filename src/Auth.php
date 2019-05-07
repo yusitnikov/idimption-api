@@ -7,12 +7,16 @@ use Idimption\Exception\BadRequestException;
 
 class Auth
 {
+    use SingletonWithMockTrait;
+
+    protected $_session;
+
     /**
-     * @param string $email
+     * @param string|null $email
      * @return User
      * @throws BadRequestException
      */
-    private static function _getUserDataOrDie($email)
+    private static function _getUserDataOrDie($email = null)
     {
         $user = $email
             ? User::getInstance()->getRowByEmail($email)
@@ -23,19 +27,25 @@ class Auth
         return $user;
     }
 
-    private static function _initSession()
+    protected static function &_initSession()
     {
-        static $done = PHP_SAPI === 'cli';
-        if (!$done) {
-            session_start([
-                'use_cookies' => true,
-                'use_only_cookies' => true,
-                'cookie_lifetime' => 0,
-                'cookie_path' => '/',
-                'cookie_httponly' => true,
-            ]);
-            $done = true;
+        $instance = self::getInstance();
+        if ($instance->_session === null) {
+            if (PHP_SAPI === 'cli') {
+                $instance->_session = [];
+            } else {
+                session_start([
+                    'use_cookies' => true,
+                    'use_only_cookies' => true,
+                    'cookie_lifetime' => 0,
+                    'cookie_path' => '/',
+                    'cookie_httponly' => true,
+                ]);
+                $instance->_session =& $_SESSION;
+            }
         }
+
+        return $instance->_session;
     }
 
     public static function getPasswordHash($password)
@@ -48,8 +58,7 @@ class Auth
      */
     public static function getLoggedInUser()
     {
-        self::_initSession();
-        $userId = $_SESSION['userId'] ?? null;
+        $userId = self::_initSession()['userId'] ?? null;
         return $userId ? User::getInstance()->getRowById($userId) : null;
     }
 
@@ -57,6 +66,12 @@ class Auth
     {
         $user = self::getLoggedInUser();
         return $user ? $user->id : null;
+    }
+
+    public static function getLoggedInUserName()
+    {
+        $user = self::getLoggedInUser();
+        return $user ? $user->name : 'Guest';
     }
 
     public static function isVerifiedEmail()
@@ -78,8 +93,7 @@ class Auth
 
     public static function setLoggedInUserId($userId)
     {
-        self::_initSession();
-        $_SESSION['userId'] = $userId;
+        self::_initSession()['userId'] = $userId;
     }
 
     public static function login($email, $password)
@@ -95,11 +109,15 @@ class Auth
 
     public static function register($email, $name, $password)
     {
+        if (User::getInstance()->getRowByEmail($email)) {
+            throw new BadRequestException('User ' . $email . ' already exists');
+        }
+
         $user = new User();
         $user->email = $email;
         $user->name = $name;
         $user->passwordHash = $password;
-        $user->add();
+        $user->add(true, true);
 
         self::setLoggedInUserId($user->id);
 
@@ -113,18 +131,15 @@ class Auth
         self::setLoggedInUserId(null);
     }
 
-    public static function sendVerificationCode($email, $resetPassword = false)
+    public static function sendVerificationCode($email = null, $resetPassword = false)
     {
         $user = self::_getUserDataOrDie($email);
-        $verificationCode = sha1(mt_rand());
-        App::getInstance()->log('Sending verification code for user ' . $user->id . ' (' . $email . '), the code is ' . $verificationCode);
-        $user->adminUpdate([
-            'verificationCode' => $verificationCode,
-        ]);
+        $email = $user->email;
+        App::getInstance()->log('Sending verification code for user ' . $user->id . ' (' . $email . ')');
 
         $aim = $resetPassword ? 'reset your password' : 'verify your email for Idimption';
-        $verificationUrl = App::getInstance()->getFrontEndUri('/auth/verify/' . urlencode($verificationCode) . '/' . (int)$resetPassword);
-        Email::send(
+        $verificationUrl = $user->getVerificationUrl($resetPassword ? '/profile' : '/');
+        Email::getInstance()->send(
             'Email verification for Idimption',
             "
                 <p>Hi $user->name,</p>
@@ -142,12 +157,17 @@ class Auth
         if (!$user) {
             throw new BadRequestException('Verification code expired');
         }
-        App::getInstance()->log('Marking email as verified for user ' . $user->id . ' (' . $user->email . ')');
-        $user->adminUpdate([
-            'verifiedEmail' => true,
-            'verificationCode' => null,
-        ]);
+        $wasNotVerified = !$user->verifiedEmail;
+        if ($wasNotVerified) {
+            App::getInstance()->log('Marking email as verified for user ' . $user->id . ' (' . $user->email . ')');
+            $user->adminUpdate([
+                'verifiedEmail' => true,
+            ]);
+        }
         self::setLoggedInUserId($user->id);
-        return $user->id;
+        return [
+            'userId' => $user->id,
+            'verifiedNow' => $wasNotVerified,
+        ];
     }
 }

@@ -4,15 +4,10 @@ namespace Idimption\Entity;
 
 class TagSubscription extends BaseEntity
 {
-    use UserIdFieldTrait, TagIdFieldTrait;
+    use SubscriptionTrait, TagIdFieldTrait;
 
-    /**
-     * @var bool
-     */
-    public $included;
-
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('tagsubscription');
+        parent::__construct($data, 'tagsubscription');
     }
 }

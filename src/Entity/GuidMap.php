@@ -16,6 +16,9 @@ class GuidMap implements JsonSerializable
     public function substitute($value)
     {
         if (is_string($value)) {
+            if (substr($value, 0, 1) === '-') {
+                return '-' . $this->substitute(substr($value, 1));
+            }
             return $this->_map[$value] ?? $value;
         } elseif (is_array($value)) {
             return array_map([$this, 'substitute'], $value);

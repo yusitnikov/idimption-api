@@ -4,10 +4,10 @@ namespace Idimption\Entity;
 
 class IdeaTag extends BaseEntity
 {
-    use RelationEntityTrait, IdeaIdFieldTrait, TagIdFieldTrait;
+    use IdeaIdParentFieldTrait, TagIdFieldTrait;
 
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('ideatag');
+        parent::__construct($data, 'ideatag');
     }
 }

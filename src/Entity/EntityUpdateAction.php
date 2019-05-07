@@ -2,6 +2,8 @@
 
 namespace Idimption\Entity;
 
+use Idimption\Exception\InternalServerErrorException;
+
 class EntityUpdateAction
 {
     const INSERT = 'add';
@@ -11,5 +13,19 @@ class EntityUpdateAction
     public static function isAllowedAction($action)
     {
         return in_array($action, [self::INSERT, self::UPDATE, self::DELETE]);
+    }
+
+    public static function getActionName($action)
+    {
+        switch ($action) {
+            case EntityUpdateAction::INSERT:
+                return 'added';
+            case EntityUpdateAction::UPDATE:
+                return 'updated';
+            case EntityUpdateAction::DELETE:
+                return 'removed';
+            default:
+                throw new InternalServerErrorException();
+        }
     }
 }

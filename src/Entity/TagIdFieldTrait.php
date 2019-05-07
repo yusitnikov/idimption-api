@@ -7,6 +7,7 @@ trait TagIdFieldTrait
     /**
      * @var int
      * @foreignClass Tag
+     * @displayField
      */
     public $tagId;
 

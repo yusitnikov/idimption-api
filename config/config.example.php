@@ -2,6 +2,7 @@
 
 return [
     'frontEndUri' => 'http://localhost:8080',
+    'salt' => 'Xbvuvs4_HzmyNLAu',
     'db' => [
         'user' => 'root',
         'pass' => 'root',

@@ -2,6 +2,7 @@
 
 namespace Idimption;
 
+use Idimption\Entity\AllEntities;
 use Idimption\Exception\DbException;
 use mysqli;
 use mysqli_result;
@@ -9,28 +10,21 @@ use Throwable;
 
 class Db
 {
-    /**
-     * @return self
-     */
-    private static function getInstance()
-    {
-        static $instance = null;
-        return $instance = $instance ?? new self();
-    }
+    use SingletonWithMockTrait;
 
     /** @var mysqli */
-    private $_mysqli;
+    protected $_mysqli;
 
     /** @var int */
-    private $_insertedId = 0;
+    protected $_insertedId = 0;
 
-    /** @var resource */
-    private $_log;
+    /** @var Logger */
+    protected $_log;
 
-    private function __construct()
+    protected function init()
     {
         $config = App::getInstance()->getConfig('db');
-        $this->_log = fopen(__DIR__ . '/../logs/db.log', 'ab');
+        $this->_log = new Logger('db.log');
         $this->_mysqli = mysqli_init();
         $this->_mysqli->connect(
             $config['host'] ?? 'localhost',
@@ -41,16 +35,14 @@ class Db
         );
     }
 
-    function __destruct()
+    protected function dispose()
     {
-        fclose($this->_log);
         $this->_mysqli->close();
     }
 
-    private static function _log($message)
+    private function _log($message)
     {
-        $prefix = App::getInstance()->getLogPrefix();
-        fwrite(self::getInstance()->_log, "$prefix $message\n");
+        $this->_log->log($message);
     }
 
     /**
@@ -58,23 +50,15 @@ class Db
      * @param int|null $code
      * @return DbException
      */
-    private static function _exception($message = null, $code = null)
+    private function _exception($message = null, $code = null)
     {
-        $message = $message ?? self::_mysqli()->error;
-        $code = $code ?? self::_mysqli()->errno;
-        self::_log("Error: $message");
+        $message = $message ?? $this->_mysqli->error;
+        $code = $code ?? $this->_mysqli->errno;
+        $this->_log("Error: $message");
         return new DbException($message, $code);
     }
 
-    /**
-     * @return mysqli
-     */
-    private static function _mysqli()
-    {
-        return self::getInstance()->_mysqli;
-    }
-
-    public static function escapeValue($value)
+    public function escapeValue($value)
     {
         if ($value === null) {
             return 'NULL';
@@ -83,10 +67,10 @@ class Db
         } elseif (is_array($value)) {
             $value = json_encode($value);
         }
-        return "'" . self::_mysqli()->real_escape_string($value) . "'";
+        return "'" . $this->_mysqli->real_escape_string($value) . "'";
     }
 
-    public static function escapeName($name)
+    public function escapeName($name)
     {
         return "`$name`";
     }
@@ -97,27 +81,27 @@ class Db
      * @return mysqli_result|bool
      * @throws DbException
      */
-    private static function _query($sql, $log)
+    private function _query($sql, $log)
     {
         if ($log) {
-            self::_log("SQL: $sql;");
+            $this->_log("SQL: $sql;");
         }
         $startTime = microtime(true);
-        $result = self::_mysqli()->query($sql);
+        $result = $this->_mysqli->query($sql);
         $dt = microtime(true) - $startTime;
         if ($log) {
-            self::_log("Query took $dt seconds");
+            $this->_log("Query took $dt seconds");
         }
         if ($result === false) {
-            throw self::_exception();
+            throw $this->_exception();
         }
         if ($log) {
-            self::_log('Affected rows: ' . self::getAffectedRowsCount());
+            $this->_log('Affected rows: ' . $this->getAffectedRowsCount());
         }
         if ($log) {
-            $insertedId = self::getInsertedId();
+            $insertedId = $this->getInsertedId();
             if ($insertedId) {
-                self::_log("ID: $insertedId");
+                $this->_log("ID: $insertedId");
             }
         }
         return $result;
@@ -129,15 +113,30 @@ class Db
      * @return array[]
      * @throws DbException
      */
-    public static function select($sql, $assoc = true)
+    public function select($sql, $assoc = true)
     {
-        $result = self::_query($sql, false);
+        $result = $this->_query($sql, false);
         if ($result === true) {
-            throw self::_exception('Asserted SELECT query, got UPDATE query', -1);
+            throw $this->_exception('Asserted SELECT query, got UPDATE query', -1);
         }
         $rows = $result->fetch_all($assoc ? MYSQLI_ASSOC : MYSQLI_NUM);
         $result->close();
         return $rows;
+    }
+
+    /**
+     * @param string $tableName
+     * @return array[]
+     * @throws DbException
+     */
+    public function selectAll($tableName)
+    {
+        /** @noinspection SqlResolve */
+        return $this->select("
+            SELECT *
+            FROM " . $this->escapeName($tableName) . "
+            ORDER BY id
+        ");
     }
 
     /**
@@ -146,9 +145,9 @@ class Db
      * @return array|null
      * @throws DbException
      */
-    public static function selectRow($sql, $assoc = true)
+    public function selectRow($sql, $assoc = true)
     {
-        return self::select($sql, $assoc)[0] ?? null;
+        return $this->select($sql, $assoc)[0] ?? null;
     }
 
     /**
@@ -157,9 +156,9 @@ class Db
      * @param string $sql
      * @throws DbException
      */
-    private static function _internalExec($sql)
+    private function _internalExec($sql)
     {
-        $result = self::_query($sql, true);
+        $result = $this->_query($sql, true);
         if ($result !== true) {
             $result->close();
         }
@@ -170,38 +169,38 @@ class Db
      * @param array|null $logData
      * @throws DbException
      */
-    public static function exec($sql, $logData = null)
+    public function exec($sql, $logData = null)
     {
-        self::_internalExec($sql);
+        $this->_internalExec($sql);
         $type = strtoupper(preg_split('~\s~', trim($sql), 2)[0]);
         if ($type === 'INSERT') {
-            self::getInstance()->_insertedId = self::_mysqli()->insert_id;
+            $this->_insertedId = $this->_mysqli->insert_id;
         }
 
         if ($logData !== null) {
             $logData['type'] = $type;
             $logData['sql'] = $sql;
             if ($type === 'INSERT') {
-                $logData['insertedId'] = self::getInstance()->_insertedId;
+                $logData['insertedId'] = $this->_insertedId;
             }
-            $logData['affectedRows'] = self::getAffectedRowsCount();
-            self::dbLog('DB', $logData);
+            $logData['affectedRows'] = $this->getAffectedRowsCount();
+            $this->dbLog('DB', $logData);
         }
     }
 
-    public static function insertRow($tableName, $data, $log = true)
+    public function insertRow($tableName, $data, $log = true)
     {
         $fieldNameSqlParts = [];
         $fieldValueSqlParts = [];
 
         foreach ($data as $fieldName => $fieldValue) {
-            $fieldNameSqlParts[] = self::escapeName($fieldName);
-            $fieldValueSqlParts[] = self::escapeValue($fieldValue);
+            $fieldNameSqlParts[] = $this->escapeName($fieldName);
+            $fieldValueSqlParts[] = $this->escapeValue($fieldValue);
         }
 
-        self::exec(
+        $this->exec(
             '
-                INSERT INTO ' . self::escapeName($tableName) . '
+                INSERT INTO ' . $this->escapeName($tableName) . '
                 (' . implode(', ', $fieldNameSqlParts) . ')
                 VALUES (' . implode(', ', $fieldValueSqlParts) . ')
             ',
@@ -214,21 +213,21 @@ class Db
         );
     }
 
-    public static function updateRow($tableName, $id, $data, $log = true)
+    public function updateRow($tableName, $id, $data, $log = true)
     {
         $updateSqlParts = [];
 
         foreach ($data as $fieldName => $fieldValue) {
-            $updateSqlParts[] = self::escapeName($fieldName) . ' = ' . self::escapeValue($fieldValue);
+            $updateSqlParts[] = $this->escapeName($fieldName) . ' = ' . $this->escapeValue($fieldValue);
         }
 
         if ($updateSqlParts) {
             /** @noinspection SqlResolve */
-            self::exec(
+            $this->exec(
                 '
-                    UPDATE ' . self::escapeName($tableName) . '
+                    UPDATE ' . $this->escapeName($tableName) . '
                     SET ' . implode(', ', $updateSqlParts) . '
-                    WHERE id = ' . self::escapeValue($id) . '
+                    WHERE id = ' . $this->escapeValue($id) . '
                 ',
                 $log
                     ? [
@@ -241,14 +240,14 @@ class Db
         }
     }
 
-    public static function deleteRow($tableName, $id, $log = true)
+    public function deleteRow($tableName, $id, $log = true)
     {
         /** @noinspection SqlResolve */
-        self::exec(
+        $this->exec(
             '
                 DELETE
-                FROM ' . self::escapeName($tableName) . '
-                WHERE id = ' . self::escapeValue($id) . '
+                FROM ' . $this->escapeName($tableName) . '
+                WHERE id = ' . $this->escapeValue($id) . '
             ',
             $log
                 ? [
@@ -262,26 +261,26 @@ class Db
     /**
      * @return int|null
      */
-    public static function getInsertedId()
+    public function getInsertedId()
     {
-        return self::getInstance()->_insertedId;
+        return $this->_insertedId;
     }
 
     /**
      * @return int
      */
-    public static function getAffectedRowsCount()
+    public function getAffectedRowsCount()
     {
-        return self::_mysqli()->affected_rows;
+        return $this->_mysqli->affected_rows;
     }
 
-    public static function dbLog($type, $data)
+    public function dbLog($type, $data)
     {
         if (!is_array($data)) {
             $data = ['data' => $data];
         }
         $app = App::getInstance();
-        self::_internalExec('
+        $this->_internalExec('
             INSERT INTO log
             (
               createdAt,
@@ -294,12 +293,12 @@ class Db
             )
             VALUES(
               ' . App::getInstance()->getStartTime() . ',
-              ' . self::escapeValue($app->getSessionId()) . ',
-              ' . self::escapeValue($app->getUri()) . ',
-              ' . self::escapeValue($app->getParams()) . ',
-              ' . self::escapeValue(Auth::getLoggedInUserId()) . ',
-              ' . self::escapeValue($type) . ',
-              ' . self::escapeValue($data) . '
+              ' . $this->escapeValue($app->getSessionId()) . ',
+              ' . $this->escapeValue($app->getUri()) . ',
+              ' . $this->escapeValue($app->getParams()) . ',
+              ' . $this->escapeValue(Auth::getLoggedInUserId()) . ',
+              ' . $this->escapeValue($type) . ',
+              ' . $this->escapeValue($data) . '
             )
         ');
     }
@@ -310,21 +309,24 @@ class Db
      * @param callable $callback The function to execute
      * @return mixed The result of the function
      */
-    public static function transaction($callback)
+    public function transaction($callback)
     {
-        self::_mysqli()->begin_transaction();
-        self::_mysqli()->autocommit(false);
+        $changes = AllEntities::getAllChanges();
+        $this->_mysqli->begin_transaction();
+        $this->_mysqli->autocommit(false);
         $result = null;
         try {
             $result = call_user_func($callback);
         } catch (Throwable $exception) {
-            self::_mysqli()->rollback();
+            // Revert changes array to the previous state
+            AllEntities::setAllChanges($changes);
+            $this->_mysqli->rollback();
             throw $exception;
         } finally {
-            self::_mysqli()->autocommit(true);
+            $this->_mysqli->autocommit(true);
         }
-        if (!self::_mysqli()->commit()) {
-            throw self::_exception();
+        if (!$this->_mysqli->commit()) {
+            throw $this->_exception();
         }
         return $result;
     }

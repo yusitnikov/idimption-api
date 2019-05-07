@@ -4,25 +4,20 @@ namespace Idimption\Entity;
 
 class IdeaCommentMention extends BaseEntity
 {
-    use UserIdFieldTrait;
+    use UserIdLinkFieldTrait;
 
     /**
      * @var int
      * @foreignClass IdeaComment
+     * @parent
+     * @displayField
      * @hook IdeaCommentId
      */
     public $ideaCommentId;
 
-    /**
-     * @var string
-     * @foreignClass User
-     * @readOnly
-     */
-    public $userId;
-
-    public function __construct()
+    public function __construct($data = [])
     {
-        parent::__construct('ideacommentmention');
+        parent::__construct($data, 'ideacommentmention');
     }
 
     public function allowAnonymousCreate()
@@ -36,5 +31,10 @@ class IdeaCommentMention extends BaseEntity
     public function getIdeaComment()
     {
         return IdeaComment::getInstance()->getRowById($this->ideaCommentId);
+    }
+
+    protected function getSummarySeparator()
+    {
+        return ' to ';
     }
 }

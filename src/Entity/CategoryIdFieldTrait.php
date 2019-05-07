@@ -7,6 +7,7 @@ trait CategoryIdFieldTrait
     /**
      * @var int
      * @foreignClass Category
+     * @displayField
      */
     public $categoryId;
 

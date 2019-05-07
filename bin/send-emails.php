@@ -5,16 +5,15 @@ namespace Idimption;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 while (true) {
-    $email = Db::selectRow('
+    $email = Db::getInstance()->selectRow('
         SELECT *
         FROM emailqueue
         ORDER BY id
         LIMIT 1
     ');
     if ($email) {
-        var_dump($email);
-        Db::deleteRow('emailqueue', $email['id']);
-        Email::send(
+        Db::getInstance()->deleteRow('emailqueue', $email['id']);
+        Email::getInstance()->send(
             $email['subject'],
             $email['content'],
             json_decode($email['toAddresses'] ?: '[]', true),
@@ -25,4 +24,3 @@ while (true) {
         sleep(5);
     }
 }
-

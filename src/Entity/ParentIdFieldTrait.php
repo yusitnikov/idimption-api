@@ -11,11 +11,19 @@ trait ParentIdFieldTrait
     public $parentId;
 
     /**
+     * @return int|null
+     */
+    public function getParentId()
+    {
+        return $this->parentId;
+    }
+
+    /**
      * @return static|null
      */
     public function getParent()
     {
-        return $this->parentId ? $this->getRowById($this->parentId) : null;
+        return $this->parentId ? static::getInstance()->getRowById($this->parentId) : null;
     }
 
     /**

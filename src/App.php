@@ -2,33 +2,31 @@
 
 namespace Idimption;
 
+use Idimption\Entity\AllEntities;
+use Idimption\Entity\BaseEntity;
+use Idimption\Entity\EntityUpdateAction;
+use Idimption\Entity\User;
+use Idimption\Entity\UserSubscription;
 use Idimption\Exception\BadRequestException;
 use Throwable;
 
 class App
 {
-    private $_config;
-    private $_sessionId;
-    private $_startTime;
-    private $_log;
+    use SingletonWithMockTrait;
 
-    public static function getInstance()
-    {
-        static $instance = null;
-        return $instance = $instance ?: new self();
-    }
+    protected $_config;
+    protected $_sessionId;
+    protected $_startTime;
+    protected $_params;
+    /** @var Logger */
+    protected $_log;
 
-    private function __construct()
+    protected function init()
     {
         $this->_config = require(__DIR__ . '/../config/config.php');
         $this->_sessionId = mt_rand();
         $this->_startTime = microtime(true);
-        $this->_log = fopen(__DIR__ . '/../logs/app.log', 'ab');
-    }
-
-    public function __destruct()
-    {
-        fclose($this->_log);
+        $this->_log = new Logger('app.log');
     }
 
     public function getConfig(...$fieldNames)
@@ -54,8 +52,7 @@ class App
 
     public function log($message)
     {
-        $prefix = $this->getLogPrefix();
-        fwrite($this->_log, "$prefix $message\n");
+        $this->_log->log($message);
     }
 
     public function getFrontEndUri($uri = '')
@@ -70,18 +67,17 @@ class App
 
     public function getParams()
     {
-        static $params = null;
-        if ($params === null) {
-            $params = $_GET;
+        if ($this->_params === null) {
+            $this->_params = $_GET;
             $input = file_get_contents('php://input');
             if (!empty($input)) {
                 $inputArray = json_decode($input, true);
                 if (is_array($inputArray)) {
-                    $params = array_merge($params, $inputArray);
+                    $this->_params = array_merge($this->_params, $inputArray);
                 }
             }
         }
-        return $params;
+        return $this->_params;
     }
 
     public function getParam($name, $mandatory = false, $acceptedFormats = [])
@@ -117,6 +113,8 @@ class App
             $result = call_user_func($callback);
             $error = null;
             $success = true;
+
+            $this->sendNotifications();
         } catch (Throwable $exception) {
             $result = null;
             $error = [
@@ -139,5 +137,49 @@ class App
             ],
             JSON_PRETTY_PRINT
         );
+    }
+
+    public function sendNotifications()
+    {
+        $allChanges = AllEntities::popAllChanges();
+
+        $currentUser = Auth::getLoggedInUser();
+
+        /** @var User $recipient */
+        foreach (User::getInstance()->getAllRows() as $recipient) {
+            if ($recipient->id === Auth::getLoggedInUserId()) {
+                continue;
+            }
+
+            if (!$recipient->verifiedEmail) {
+                continue;
+            }
+
+            if (!$recipient->subscribeToAll && $currentUser && UserSubscription::getInstance()->getUserSubscriptionForObject($recipient, $currentUser) === false) {
+                continue;
+            }
+
+            foreach ($allChanges as $tableName => $tableChanges) {
+                foreach ($tableChanges as $change) {
+                    /** @var BaseEntity $row */
+                    $row = $change->getInfoRow();
+
+                    $reason = $recipient->subscribeToAll ? 'you are subscribed to all updates' : $row->getNotificationReason($change, $recipient);
+                    if (!$reason) {
+                        continue;
+                    }
+
+                    $changeHtml = $row->formatChange($change, $recipient);
+                    if ($changeHtml || $change->action !== EntityUpdateAction::UPDATE) {
+                        $subjectText = Auth::getLoggedInUserName() . ' ' . $row->getChangeSummary($change, $recipient, false);
+                        $subjectHtml = htmlspecialchars(Auth::getLoggedInUserName()) . ' ' . $row->getChangeSummary($change, $recipient, true);
+                        $html = "<h2>" . $subjectHtml . "</h2>\n";
+                        $html .= $changeHtml;
+                        $html .= "<p>You received this email because $reason. <a href='" . $recipient->getVerificationUrl('/profile') . "'>Manage subscription settings</a>.</p>";
+                        Email::getInstance()->queue($subjectText, $html, [$recipient->email]);
+                    }
+                }
+            }
+        }
     }
 }

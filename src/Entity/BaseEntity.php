@@ -2,8 +2,13 @@
 
 namespace Idimption\Entity;
 
+use Chameleon\PhpDiff\StringDiffOperation;
 use Idimption\Db;
+use Idimption\Differ;
 use Idimption\Entity\FieldHook\BaseFieldHook;
+use Idimption\Exception\BadRequestException;
+use Idimption\Exception\InternalServerErrorException;
+use Idimption\Html;
 use Idimption\Map;
 use JsonSerializable;
 use ReflectionClass;
@@ -11,14 +16,20 @@ use ReflectionProperty;
 
 abstract class BaseEntity implements JsonSerializable
 {
+    protected static $_instances = [];
+
     /**
      * @return static
      */
     public static function getInstance()
     {
-        static $instances = [];
         $class = static::class;
-        return $instances[$class] = $instances[$class] ?? new $class();
+        return self::$_instances[$class] = self::$_instances[$class] ?? new $class();
+    }
+
+    public static function resetInstances()
+    {
+        self::$_instances = [];
     }
 
     /** @var string */
@@ -36,6 +47,9 @@ abstract class BaseEntity implements JsonSerializable
     /** @var GuidMap|null */
     private $_guidMap = null;
 
+    /** @var RowChange[] */
+    private $_changes = [];
+
     /**
      * @var int
      * @hook AutoIncrement
@@ -43,10 +57,11 @@ abstract class BaseEntity implements JsonSerializable
      */
     public $id;
 
-    protected function __construct($tableName, $viewName = null)
+    protected function __construct($data, $tableName, $viewName = null)
     {
         $this->_tableName = $tableName;
         $this->_viewName = $viewName ?? $tableName;
+        $this->setFromArray($data, false);
     }
 
     public function allowAnonymousCreate()
@@ -85,13 +100,10 @@ abstract class BaseEntity implements JsonSerializable
      */
     public function getAllRows()
     {
-        /** @noinspection SqlResolve */
-        $sql = "
-            SELECT *
-            FROM " . Db::escapeName($this->_viewName) . "
-            ORDER BY id
-        ";
-        return $this->_allRowsCache = $this->_allRowsCache ?? array_map([get_class($this), 'fromJson'], Db::select($sql));
+        if ($this !== static::getInstance()) {
+            throw new InternalServerErrorException();
+        }
+        return $this->_allRowsCache = $this->_allRowsCache ?? array_map([get_class($this), 'fromJson'], Db::getInstance()->selectAll($this->_viewName));
     }
 
     /**
@@ -102,6 +114,9 @@ abstract class BaseEntity implements JsonSerializable
      */
     public function getRowsMap($fields = ['id'], $resultField = null, $multiple = false)
     {
+        if ($this !== static::getInstance()) {
+            throw new InternalServerErrorException();
+        }
         $key = json_encode(func_get_args());
         return $this->_rowMapCache[$key] = $this->_rowMapCache[$key] ?? Map::map($this->getAllRows(), $fields, $resultField, $multiple);
     }
@@ -125,6 +140,9 @@ abstract class BaseEntity implements JsonSerializable
 
     public function clearCache()
     {
+        if ($this !== static::getInstance()) {
+            throw new InternalServerErrorException();
+        }
         $this->_allRowsCache = null;
         $this->_rowMapCache = [];
     }
@@ -197,6 +215,12 @@ abstract class BaseEntity implements JsonSerializable
             $info['foreignTable'] = $foreignModel->getTableName();
         }
 
+        if (!empty($info['format'])) {
+            $info['format'] = json_decode('{' . $info['format'] . '}', true) ?: [];
+        } else {
+            $info['format'] = $info['var'] === 'bool' ? ['yes' => true, 'no' => false] : [];
+        }
+
         return $info;
     }
 
@@ -225,12 +249,14 @@ abstract class BaseEntity implements JsonSerializable
     }
 
     /**
+     * @param bool $allFields
      * @return array
      */
-    public function toArray()
+    public function toArray($allFields)
     {
         $result = [];
-        foreach ($this->getVisibleFields() as $fieldName) {
+        $fieldNames = $allFields ? $this->getAllFields() : $this->getVisibleFields();
+        foreach ($fieldNames as $fieldName) {
             $result[$fieldName] = $this->$fieldName;
         }
         return $result;
@@ -241,15 +267,16 @@ abstract class BaseEntity implements JsonSerializable
      */
     public function jsonSerialize()
     {
-        return $this->toArray();
+        return $this->toArray(false);
     }
 
-    /**
-     * @param array $array
-     */
-    public function jsonUnserialize($array)
+    public function setFromArray($array, $resetAll)
     {
         foreach ($this->getAllFields() as $fieldName) {
+            if (!$resetAll && !array_key_exists($fieldName, $array)) {
+                continue;
+            }
+
             $value = $array[$fieldName] ?? null;
             $type = $this->getFieldInfo($fieldName)['var'];
             switch ($type) {
@@ -268,6 +295,14 @@ abstract class BaseEntity implements JsonSerializable
 
     /**
      * @param array $array
+     */
+    public function jsonUnserialize($array)
+    {
+        $this->setFromArray($array, true);
+    }
+
+    /**
+     * @param array $array
      * @return static
      */
     public static function fromJson($array)
@@ -277,6 +312,14 @@ abstract class BaseEntity implements JsonSerializable
         $row = new $className();
         $row->jsonUnserialize($array);
         return $row;
+    }
+
+    /**
+     * @return static|null
+     */
+    public function getOriginalRow()
+    {
+        return static::getInstance()->getRowById($this->id);
     }
 
     /**
@@ -300,11 +343,16 @@ abstract class BaseEntity implements JsonSerializable
         return null;
     }
 
-    private function _add($disableHooks = false, $log = true)
+    private function _add($disableHooks = false, $log = true, $allFields = false)
     {
+        $guid = $this->id = $this->id ?: 'fake';
+
+        $this->reportAction(EntityUpdateAction::INSERT);
+
         $data = [];
 
-        foreach ($this->getVisibleFields() as $fieldName) {
+        $fieldNames = $allFields ? $this->getAllFields() : $this->getVisibleFields();
+        foreach ($fieldNames as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
             if ($hook) {
                 $hook->validate();
@@ -317,29 +365,54 @@ abstract class BaseEntity implements JsonSerializable
             $data[$fieldName] = $this->$fieldName;
         }
 
-        Db::insertRow($this->getTableName(), $data, $log);
+        Db::getInstance()->insertRow($this->getTableName(), $data, $log);
 
-        foreach ($this->getVisibleFields() as $fieldName) {
-            $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::INSERT);
-            if ($hook) {
-                $hook->updateFieldValueAfterSave();
+        $this->id = $id = (string)Db::getInstance()->getInsertedId();
+        if ($this->_guidMap) {
+            $this->_guidMap->add($guid, $id);
+        }
+
+        $instance = static::getInstance();
+        if (isset($instance->_changes[$guid])) {
+            $instance->_changes[$id] = $instance->_changes[$guid];
+            unset($instance->_changes[$guid]);
+        }
+        foreach (AllEntities::getAllModels() as $instance) {
+            foreach ($instance->_changes as $change) {
+                foreach ($change->foreignRowChanges[get_class($this)] ?? [] as $foreignRowChange) {
+                    if ($foreignRowChange->action === EntityUpdateAction::INSERT) {
+                        if ($foreignRowChange->updateRow->id === $guid) {
+                            $foreignRowChange->updateRow->id = $id;
+                        }
+                        if ($foreignRowChange->updateRow->id === '-' . $guid) {
+                            $foreignRowChange->updateRow->id = '-' . $id;
+                        }
+                    }
+                }
             }
         }
     }
 
-    public function add($log = true)
+    public function add($log = true, $allFields = false)
     {
-        $this->_add(false, $log);
+        $this->_add(false, $log, $allFields);
         AllEntities::clearCache();
     }
 
-    private function _update($disableHooks = false, $updateFields = [], $log = true)
+    private function _update($updateFields, $disableHooks = false, $log = true)
     {
+        $this->reportAction(EntityUpdateAction::UPDATE, $updateFields);
+
+        $originalRow = $this->getOriginalRow();
+        if (!$originalRow) {
+            throw new BadRequestException('Row not found');
+        }
+
         $updatesArray = [];
 
         foreach ($this->getVisibleFields() as $fieldName) {
             $fieldInfo = $this->getFieldInfo($fieldName);
-            $isSkipped = $updateFields && !in_array($fieldName, $updateFields);
+            $isSkipped = !in_array($fieldName, $updateFields);
 
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::UPDATE, $isSkipped);
             if ($hook) {
@@ -365,26 +438,20 @@ abstract class BaseEntity implements JsonSerializable
         }
 
         if ($updatesArray) {
-            Db::updateRow($this->getTableName(), $this->id, $updatesArray, $log);
-        }
-
-        foreach ($this->getVisibleFields() as $fieldName) {
-            $isSkipped = $updateFields && !in_array($fieldName, $updateFields);
-            $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::UPDATE, $isSkipped);
-            if ($hook) {
-                $hook->updateFieldValueAfterSave();
-            }
+            Db::getInstance()->updateRow($this->getTableName(), abs($this->id), $updatesArray, $log);
         }
     }
 
-    public function update($updateFields = [], $log = true)
+    public function update($updateFields, $log = true)
     {
-        $this->_update(false, $updateFields, $log);
+        $this->_update($updateFields, false, $log);
         AllEntities::clearCache();
     }
 
     private function _delete($disableHooks = false, $log = true)
     {
+        $this->reportAction(EntityUpdateAction::DELETE);
+
         foreach ($this->getVisibleFields() as $fieldName) {
             $hook = $disableHooks ? null : $this->_getFieldHookObject($fieldName, EntityUpdateAction::DELETE);
             if ($hook) {
@@ -392,7 +459,7 @@ abstract class BaseEntity implements JsonSerializable
             }
         }
 
-        Db::deleteRow($this->getTableName(), $this->id, $log);
+        Db::getInstance()->deleteRow($this->getTableName(), abs($this->id), $log);
     }
 
     public function delete($log = true)
@@ -414,18 +481,322 @@ abstract class BaseEntity implements JsonSerializable
                 $this->_add($disableHooks, $log);
                 break;
             case EntityUpdateAction::UPDATE:
-                $this->_update($disableHooks, $updateFields, $log);
+                $this->_update($updateFields, $disableHooks, $log);
                 break;
             case EntityUpdateAction::DELETE:
                 $this->_delete($disableHooks, $log);
                 break;
         }
 
-        /*
-         * TODO:
-         * - get updated row from the DB
-         * - primary key fields could be changed on update, but they still should be part of the WHERE clause
-         */
         AllEntities::clearCache();
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getParentFieldName()
+    {
+        foreach ($this->getFieldsInfo() as $fieldName => $fieldInfo) {
+            if (!empty($fieldInfo['parent'])) {
+                return $fieldName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param BaseEntity|string $foreignClassName
+     * @return BaseEntity[]
+     */
+    public function getChildRows($foreignClassName)
+    {
+        /** @var BaseEntity $foreignModel */
+        $foreignModel = $foreignClassName::getInstance();
+        return $foreignModel->getRowsMap([$foreignModel->getParentFieldName()], null, true)[$this->id] ?? [];
+    }
+
+    protected function getSummarySeparator()
+    {
+        return ' ';
+    }
+
+    public function formatFieldValue($fieldName, $isHtml, User $recipient = null, $includeEntityName = true)
+    {
+        $fieldValue = $this->$fieldName;
+        $fieldInfo = $this->getFieldInfo($fieldName);
+
+        if (!empty($fieldInfo['foreignClass'])) {
+            $foreignRow = $this->getForeignModel($fieldName)->getRowById($fieldValue);
+            if (!$foreignRow) {
+                return '';
+            }
+            $result = $foreignRow->getSummary($isHtml);
+            if ($includeEntityName) {
+                $foreignEntityName = $foreignRow->getEntityName($recipient);
+                if ($foreignEntityName) {
+                    $quot = $isHtml ? '&quot;' : '"';
+                    $result = "$foreignEntityName $quot$result$quot";
+                }
+            }
+            return $result;
+        }
+
+        if (is_string($fieldValue)) {
+            $fieldValue = trim($fieldValue);
+        }
+
+        $fieldValue = array_search($fieldValue, $fieldInfo['format'], true) ?: $fieldValue;
+        $fieldValue = (string)$fieldValue;
+
+        return $isHtml ? htmlspecialchars($fieldValue) : $fieldValue;
+    }
+
+    /**
+     * @param bool $isHtml
+     * @param bool $isLink
+     * @param string[] $excludedFieldNames
+     * @return string
+     */
+    public function getSummary($isHtml, $isLink = true, $excludedFieldNames = [])
+    {
+        $summaryParts = [];
+
+        foreach ($this->getFieldsInfo() as $fieldName => $fieldInfo) {
+            if (!empty($fieldInfo['displayField']) && !in_array($fieldName, $excludedFieldNames)) {
+                $fieldValue = $this->formatFieldValue($fieldName, $isHtml, null, false);
+                if ($fieldValue !== '') {
+                    $summaryParts[] = $fieldValue;
+                }
+            }
+        }
+
+        return implode($this->getSummarySeparator(), $summaryParts);
+    }
+
+    public function getSummaryWithoutParent($isHtml, $isLink = true)
+    {
+        return $this->getSummary($isHtml, $isLink, [$this->getParentFieldName()]);
+    }
+
+    /**
+     * @param EntityUpdateAction|string $action
+     * @param string[] $changedFields
+     * @return RowChange
+     */
+    protected function createChangeObject($action, $changedFields = [])
+    {
+        return new RowChange($action, $this->getOriginalRow(), $this, $changedFields);
+    }
+
+    /**
+     * @param EntityUpdateAction|string $action
+     * @param bool $override
+     * @param string[] $changedFields
+     * @return RowChange
+     */
+    protected function getOrCreateChangeObject($action, $override, $changedFields = [])
+    {
+        $instance = static::getInstance();
+        $change = $instance->_changes[$this->id] = $instance->_changes[$this->id] ?? $this->createChangeObject($action, $changedFields);
+        if ($override) {
+            $change->action = $action;
+            $change->originalRow = $this->getOriginalRow();
+            $change->updateRow = $this;
+            $change->changedFields = $changedFields;
+        }
+        return $change;
+    }
+
+    /**
+     * @param EntityUpdateAction|string $action
+     * @param string[] $changedFields
+     */
+    public function reportAction($action, $changedFields = [])
+    {
+        $parentFieldName = $this->getParentFieldName();
+        if ($parentFieldName) {
+            $parentId = $this->$parentFieldName ?? $this->getOriginalRow()->$parentFieldName;
+            $parentRow = $this->getForeignModel($parentFieldName)->getRowById($parentId);
+            if ($parentRow) {
+                $parentRow
+                    ->getOrCreateChangeObject(EntityUpdateAction::UPDATE, false)
+                    ->addForeignRowChange(get_class($this), $this->createChangeObject($action, $changedFields));
+            }
+        } else {
+            $this->getOrCreateChangeObject($action, true, $changedFields);
+        }
+    }
+
+    public function getChanges()
+    {
+        if ($this !== static::getInstance()) {
+            throw new InternalServerErrorException();
+        }
+        return $this->_changes;
+    }
+
+    public function setChanges($changes)
+    {
+        if ($this !== static::getInstance()) {
+            throw new InternalServerErrorException();
+        }
+        $this->_changes = $changes;
+    }
+
+    /**
+     * @param User|null $recipient
+     * @return string|null
+     */
+    public function getEntityName(User $recipient = null)
+    {
+        return null;
+    }
+
+    public function getChangeSummary(RowChange $change, User $recipient, $isHtml)
+    {
+        $summary = EntityUpdateAction::getActionName($change->action);
+        $entityName = $this->getEntityName($recipient);
+        if ($entityName) {
+            $summary .= ' ' . $entityName;
+        }
+        $summary .= ' ' . $change->getInfoRow()->getSummary($isHtml, $change->action !== EntityUpdateAction::DELETE);
+        return $summary;
+    }
+
+    protected function formatChangeFieldWrapper($displayName, $html, $isMultiline = false, $force = false)
+    {
+        if ($html === '' && !$force) {
+            return '';
+        }
+
+        if ($html !== '' && $isMultiline) {
+            $html = Html::multiline($html);
+        }
+
+        if ($displayName) {
+            $html = $html === ''
+                ? Html::bold($displayName . '.')
+                : Html::bold($displayName . ':') . ' ' . $html;
+            $html = Html::section($html);
+        }
+
+        if ($html !== '') {
+            $html .= "\n";
+        }
+
+        return $html;
+    }
+
+    protected function formatChangeField(RowChange $change, $fieldName, $displayName = '', $showForDelete = false)
+    {
+        if ($change->action === EntityUpdateAction::DELETE && !$showForDelete) {
+            return '';
+        }
+        $fieldChange = $change->getFieldChange($fieldName);
+        if (!$fieldChange) {
+            return '';
+        }
+
+        $fieldInfo = $this->getFieldInfo($fieldName);
+
+        if ($change->action !== EntityUpdateAction::UPDATE) {
+            $html = $fieldChange->fromHtml ?: $fieldChange->toHtml;
+        } else {
+            /** @var StringDiffOperation[] $diff */
+            if (!empty($fieldInfo['diffable'])) {
+                $needEscape = true;
+                $diff = Differ::getInstance()->getDiff($fieldChange->fromText, $fieldChange->toText);
+            } else {
+                $needEscape = false;
+                $diff = [];
+                if ($fieldChange->fromHtml) {
+                    $diff[] = new StringDiffOperation(StringDiffOperation::DELETE, $fieldChange->fromHtml);
+                }
+                if ($fieldChange->toHtml) {
+                    $diff[] = new StringDiffOperation(StringDiffOperation::INSERT, $fieldChange->toHtml);
+                }
+            }
+
+            $html = '';
+            foreach ($diff as $part) {
+                $content = $needEscape ? htmlspecialchars($part->content) : $part->content;
+                switch ($part->operation) {
+                    case StringDiffOperation::DELETE:
+                        $content = Html::diffDelete($content);
+                        break;
+                    case StringDiffOperation::INSERT:
+                        $content = Html::diffAdd($content);
+                        break;
+                }
+                $html .= $content;
+            }
+        }
+
+        return $this->formatChangeFieldWrapper($displayName, $html, !empty($fieldInfo['multiline']));
+    }
+
+    public function formatForeignTableChanges(RowChange $change, $foreignClassName, $displayName)
+    {
+        if ($change->action === EntityUpdateAction::DELETE) {
+            return '';
+        }
+
+        if (empty($change->foreignRowChanges[$foreignClassName])) {
+            return '';
+        }
+
+        $parts = array_map(
+            function(BaseEntity $foreignRow) {
+                return $foreignRow->getSummaryWithoutParent(true);
+            },
+            Map::map($this->getChildRows($foreignClassName))
+        );
+
+        foreach ($change->foreignRowChanges[$foreignClassName] as $foreignRowChange) {
+            /** @var static $infoRow */
+            $infoRow = $foreignRowChange->getInfoRow();
+            $content = $infoRow->getSummaryWithoutParent(true);
+            if ($change->action === EntityUpdateAction::UPDATE) {
+                switch ($foreignRowChange->action) {
+                    case EntityUpdateAction::DELETE:
+                        $parts[$infoRow->id] = Html::diffDelete($content);
+                        break;
+                    case EntityUpdateAction::INSERT:
+                        $parts[$infoRow->id] = Html::diffAdd($content);
+                        break;
+                    case EntityUpdateAction::UPDATE:
+                        /** @var static $originalRow */
+                        $originalRow = $foreignRowChange->originalRow;
+                        $prevContent = $originalRow->getSummaryWithoutParent(true);
+                        $parts[$infoRow->id] = Html::diffDelete($prevContent) . Html::diffAdd($content);
+                        break;
+                }
+            } else {
+                $parts[$infoRow->id] = $content;
+            }
+        }
+
+        return $this->formatChangeFieldWrapper($displayName, implode(', ', $parts));
+    }
+
+    /**
+     * @param RowChange $change
+     * @param User $recipient
+     * @return string
+     */
+    public function formatChange(RowChange $change, User $recipient)
+    {
+        throw new InternalServerErrorException();
+    }
+
+    /**
+     * @param RowChange $change
+     * @param User $recipient
+     * @return string|null
+     */
+    public function getNotificationReason(RowChange $change, User $recipient)
+    {
+        return null;
     }
 }

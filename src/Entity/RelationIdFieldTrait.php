@@ -7,6 +7,7 @@ trait RelationIdFieldTrait
     /**
      * @var int
      * @foreignClass Relation
+     * @displayField
      */
     public $relationId;
 

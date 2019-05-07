@@ -6,15 +6,12 @@ CREATE TABLE user
   avatarUrl TEXT DEFAULT NULL,
   passwordHash VARCHAR(40) DEFAULT NULL,
   verifiedEmail BOOLEAN DEFAULT FALSE,
-  verificationCode VARCHAR(40) DEFAULT NULL,
   isAdmin BOOLEAN DEFAULT FALSE,
 
   subscribeToAll BOOLEAN NOT NULL DEFAULT FALSE,
   subscribeToAllNewIdeas BOOLEAN NOT NULL DEFAULT FALSE,
   subscribeToUpdatesInMyIdeas BOOLEAN NOT NULL DEFAULT TRUE,
-  subscribeToUpdatesInIdeasWatching BOOLEAN NOT NULL DEFAULT TRUE,
   subscribeToCommentsOnMyIdeas BOOLEAN NOT NULL DEFAULT TRUE,
-  subscribeToCommentsOnIdeasWatching BOOLEAN NOT NULL DEFAULT TRUE,
   subscribeToReplyComments BOOLEAN NOT NULL DEFAULT TRUE,
   subscribeToMentionComments BOOLEAN NOT NULL DEFAULT TRUE,
   subscribeToVotesInMyIdeas BOOLEAN NOT NULL DEFAULT TRUE,
@@ -252,6 +249,6 @@ CREATE VIEW idearelationfull AS
 SELECT id, relationId, ideaId, dstIdeaId
 FROM idearelation
 UNION
-SELECT ir.id, r.oppositeId, ir.dstIdeaId, ir.ideaId
+SELECT -ir.id, r.oppositeId, ir.dstIdeaId, ir.ideaId
 FROM idearelation ir
 INNER JOIN relation r ON r.id = ir.relationId;

@@ -9,14 +9,14 @@ use ReflectionClass;
 
 class AllEntities
 {
+    protected static $_models = [];
+
     /**
      * @return BaseEntity[]
      */
     public static function getAllModels()
     {
-        static $models = [];
-
-        if (!$models) {
+        if (!self::$_models) {
             $dir = opendir(__DIR__);
             while (($fileName = readdir($dir)) !== false) {
                 if (substr($fileName, -4) === '.php') {
@@ -25,14 +25,19 @@ class AllEntities
                     $reflection = new ReflectionClass($className);
                     if (!$reflection->isAbstract() && $reflection->isSubclassOf(BaseEntity::class)) {
                         $instance = $className::getInstance();
-                        $models[$instance->getTableName()] = $instance;
+                        self::$_models[$instance->getTableName()] = $instance;
                     }
                 }
             }
             closedir($dir);
         }
 
-        return $models;
+        return self::$_models;
+    }
+
+    public static function resetAllModels()
+    {
+        self::$_models = [];
     }
 
     /**
@@ -56,7 +61,7 @@ class AllEntities
             foreach ($schema['fieldsInfo'] as $fieldName => $fieldInfo) {
                 if (isset($fieldInfo['foreignTable'])) {
                     $foreignTable = $fieldInfo['foreignTable'];
-                    $schemaMap[$foreignTable]['foreignKeys'][$tableName] = $fieldName;
+                    $schemaMap[$foreignTable]['foreignKeys'][$tableName] = $schemaMap[$foreignTable]['foreignKeys'][$tableName] ?? $fieldName;
                 }
             }
         }
@@ -75,9 +80,13 @@ class AllEntities
 
     public static function save($transitions)
     {
+        if (Auth::getLoggedInUser() && !Auth::isVerifiedEmail()) {
+            throw new BadRequestException('User email not verified');
+        }
+
         $guidMap = new GuidMap();
 
-        Db::transaction(function() use($transitions, $guidMap) {
+        Db::getInstance()->transaction(function() use($transitions, $guidMap) {
             foreach ($transitions as $index => $transition) {
                 $action = $transition['type'] ?? null;
                 $tableName = $transition['tableName'] ?? null;
@@ -123,5 +132,38 @@ class AllEntities
         foreach (self::getAllModels() as $model) {
             $model->clearCache();
         }
+    }
+
+    /**
+     * @return RowChange[][]
+     */
+    public static function getAllChanges()
+    {
+        return array_filter(array_map(
+            function(BaseEntity $model) {
+                return $model->getChanges();
+            },
+            self::getAllModels()
+        ));
+    }
+
+    /**
+     * @param RowChange[][] $changes
+     */
+    public static function setAllChanges($changes)
+    {
+        foreach (self::getAllModels() as $tableName => $model) {
+            $model->setChanges($changes[$tableName] ?? []);
+        }
+    }
+
+    /**
+     * @return RowChange[][]
+     */
+    public static function popAllChanges()
+    {
+        $changes = self::getAllChanges();
+        self::setAllChanges([]);
+        return $changes;
     }
 }

@@ -7,7 +7,7 @@ trait IdeaIdFieldTrait
     /**
      * @var int
      * @foreignClass Idea
-     * @hook IdeaId
+     * @displayField
      */
     public $ideaId;
 

@@ -3,7 +3,6 @@
 namespace Idimption\Entity\FieldHook;
 
 use Idimption\Auth;
-use Idimption\Entity\EntityUpdateAction;
 
 class PasswordHashFieldHook extends BaseFieldHook
 {

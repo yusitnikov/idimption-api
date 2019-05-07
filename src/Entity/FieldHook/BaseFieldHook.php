@@ -35,7 +35,7 @@ abstract class BaseFieldHook
         $this->_fieldName = $fieldName;
         $this->_newFieldValue =& $row->$fieldName;
         if ($action !== EntityUpdateAction::INSERT) {
-            $this->_currentFieldValue = $row::getInstance()->getRowById($row->id)->$fieldName;
+            $this->_currentFieldValue = $row->getOriginalRow()->$fieldName;
         }
         $this->_action = $action;
     }
@@ -74,9 +74,5 @@ abstract class BaseFieldHook
     public function updateFieldValue()
     {
         return false;
-    }
-
-    public function updateFieldValueAfterSave()
-    {
     }
 }
