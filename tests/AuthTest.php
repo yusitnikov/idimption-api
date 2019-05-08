@@ -195,7 +195,7 @@ class AuthTest extends BaseTest
                         "<p>Hi New,</p>",
                         "<p>To verify your email for Idimption, please follow <a href='http://localhost:8080/auth/verify/$newUserVerificationCode?r=/'>this link</a>.</p>",
                         "<p>If you didn't register on Idimption with this email, then please just ignore this email.</p>",
-                        "<p>Cheers,<br>Yura from Idimption.</p>"
+                        self::EXPECTED_EMAIL_FOOTER,
                     ]),
                     'to' => ['new@mail.com'],
                     'cc' => [],
@@ -207,6 +207,7 @@ class AuthTest extends BaseTest
                     'content' => implode("\n", [
                         "<h2>New registered</h2>",
                         "<p>You received this email because you are subscribed to all updates. <a href='http://localhost:8080/auth/verify/$adminUserVerificationCode?r=/profile'>Manage subscription settings</a>.</p>",
+                        self::EXPECTED_EMAIL_FOOTER,
                     ]),
                     'to' => [self::ADMIN_USER_EMAIL],
                     'cc' => [],
@@ -261,7 +262,7 @@ class AuthTest extends BaseTest
                         "<p>Hi $name,</p>",
                         "<p>To reset your password, please follow <a href='http://localhost:8080/auth/verify/$verificationCode?r=/profile'>this link</a>.</p>",
                         "<p>If you didn't register on Idimption with this email, then please just ignore this email.</p>",
-                        "<p>Cheers,<br>Yura from Idimption.</p>"
+                        self::EXPECTED_EMAIL_FOOTER,
                     ]),
                     'to' => [$email],
                     'cc' => [],
@@ -292,7 +293,7 @@ class AuthTest extends BaseTest
                         "<p>Hi $name,</p>",
                         "<p>To verify your email for Idimption, please follow <a href='http://localhost:8080/auth/verify/$verificationCode?r=/'>this link</a>.</p>",
                         "<p>If you didn't register on Idimption with this email, then please just ignore this email.</p>",
-                        "<p>Cheers,<br>Yura from Idimption.</p>"
+                        self::EXPECTED_EMAIL_FOOTER,
                     ]),
                     'to' => [$email],
                     'cc' => [],
@@ -325,7 +326,7 @@ class AuthTest extends BaseTest
                         "<p>Hi $name,</p>",
                         "<p>To verify your email for Idimption, please follow <a href='http://localhost:8080/auth/verify/$verificationCode?r=/'>this link</a>.</p>",
                         "<p>If you didn't register on Idimption with this email, then please just ignore this email.</p>",
-                        "<p>Cheers,<br>Yura from Idimption.</p>"
+                        self::EXPECTED_EMAIL_FOOTER,
                     ]),
                     'to' => [$email],
                     'cc' => [],

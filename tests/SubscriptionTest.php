@@ -162,9 +162,14 @@ abstract class SubscriptionTest extends BaseTest
         $expectedContent = (array)$expectedContent;
         $expectedContent = array_map([Html::class, 'section'], $expectedContent);
         $expectedContent = array_merge(
-            ["<h2>" . $expectedSubjectHtml . "</h2>"],
+            [
+                "<h2>" . $expectedSubjectHtml . "</h2>",
+            ],
             $expectedContent,
-            ["<p>You received this email because $expectedReason. $expectedLink.</p>"]
+            [
+                "<p>You received this email because $expectedReason. $expectedLink.</p>",
+                self::EXPECTED_EMAIL_FOOTER,
+            ]
         );
         return [
             'subject' => $expectedSubjectText,

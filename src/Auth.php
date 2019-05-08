@@ -142,10 +142,11 @@ class Auth
         Email::getInstance()->send(
             'Email verification for Idimption',
             "
+                " . Html::emailHeader() . "
                 <p>Hi $user->name,</p>
                 <p>To $aim, please follow <a href='$verificationUrl'>this link</a>.</p>
                 <p>If you didn't register on Idimption with this email, then please just ignore this email.</p>
-                <p>Cheers,<br>Yura from Idimption.</p>
+                " . Html::emailFooter() . "
             ",
             [$email]
         );

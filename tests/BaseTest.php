@@ -16,6 +16,8 @@ use PHPUnit\Framework\TestCase;
 
 abstract class BaseTest extends TestCase
 {
+    const EXPECTED_EMAIL_FOOTER = "<p>Cheers,<br>Yura from <a href='http://localhost:8080'>Idimption</a>.</p>";
+
     /** @var AppMock */
     protected $_appMock;
 

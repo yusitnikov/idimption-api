@@ -28,4 +28,15 @@ class Html
     {
         return "<span style='background-color: #dff0d8; color: #3c763d;'>$html</span>";
     }
+
+    public static function emailHeader()
+    {
+        // TODO: add site logo and maybe something else
+        return '';
+    }
+
+    public static function emailFooter()
+    {
+        return "<p>Cheers,<br>Yura from <a href='" . App::getInstance()->getFrontEndUri() . "'>Idimption</a>.</p>";
+    }
 }

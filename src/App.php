@@ -175,8 +175,12 @@ class App
                         $subjectHtml = htmlspecialchars(Auth::getLoggedInUserName()) . ' ' . $row->getChangeSummary($change, $recipient, true);
                         $html = "<h2>" . $subjectHtml . "</h2>\n";
                         $html .= $changeHtml;
-                        $html .= "<p>You received this email because $reason. <a href='" . $recipient->getVerificationUrl('/profile') . "'>Manage subscription settings</a>.</p>";
-                        Email::getInstance()->queue($subjectText, $html, [$recipient->email]);
+                        $html .= "<p>You received this email because $reason. <a href='" . $recipient->getVerificationUrl('/profile') . "'>Manage subscription settings</a>.</p>\n";
+                        Email::getInstance()->queue(
+                            $subjectText,
+                            Html::emailHeader() . $html . Html::emailFooter(),
+                            [$recipient->email]
+                        );
                     }
                 }
             }
