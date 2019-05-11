@@ -103,7 +103,7 @@ class App
         return (int)$this->_startTime;
     }
 
-    public function run($callback)
+    public function run($callback, $returnSession = true)
     {
         header('X-Api-Session-Id: ' . $this->_sessionId);
         try {
@@ -133,7 +133,8 @@ class App
                 'success' => $success,
                 'result' => $result,
                 'error' => $error,
-                'sessionId' => $this->_sessionId,
+                'debugSessionId' => $this->_sessionId,
+                'sessionId' => $returnSession ? Auth::getSessionId() : null,
             ],
             JSON_PRETTY_PRINT
         );

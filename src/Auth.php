@@ -9,7 +9,8 @@ class Auth
 {
     use SingletonWithMockTrait;
 
-    protected $_session;
+    protected $_sessionId;
+    protected $_sessionData;
 
     /**
      * @param string|null $email
@@ -27,25 +28,69 @@ class Auth
         return $user;
     }
 
-    protected static function &_initSession()
+    protected static function _initSession()
     {
         $instance = self::getInstance();
-        if ($instance->_session === null) {
+        if ($instance->_sessionId === null) {
             if (PHP_SAPI === 'cli') {
-                $instance->_session = [];
+                $instance->_sessionId = 0;
+                $instance->_sessionData = [];
             } else {
-                session_start([
-                    'use_cookies' => true,
-                    'use_only_cookies' => true,
-                    'cookie_lifetime' => 0,
-                    'cookie_path' => '/',
-                    'cookie_httponly' => true,
-                ]);
-                $instance->_session =& $_SESSION;
+                $instance->_sessionId = App::getInstance()->getParam('sessionId');
+                $sessionData = $instance->_sessionId
+                    ? Db::getInstance()->selectValue("
+                        SELECT data
+                        FROM session
+                        WHERE id = " . Db::getInstance()->escapeValue($instance->_sessionId) . "
+                    ")
+                    : null;
+                if ($sessionData) {
+                    $instance->_sessionData = json_decode($sessionData, true);
+                } else {
+                    $instance->_sessionId = $instance->_sessionId ?: sha1(mt_rand());
+                    $instance->_sessionData = [];
+                    Db::getInstance()->insertRow(
+                        'session',
+                        [
+                            'id' => $instance->_sessionId,
+                            'data' => [],
+                        ],
+                        false
+                    );
+                }
             }
         }
+    }
 
-        return $instance->_session;
+    public static function getSessionId()
+    {
+        self::_initSession();
+        return self::getInstance()->_sessionId;
+    }
+
+    protected function _getSessionData()
+    {
+        self::_initSession();
+        return $this->_sessionData;
+    }
+
+    protected function _setSessionData($data)
+    {
+        self::_initSession();
+        $this->_sessionData = $data;
+        if (PHP_SAPI !== 'cli') {
+            Db::getInstance()->updateRow(
+                'session',
+                $this->_sessionId,
+                ['data' => $data],
+                false
+            );
+        }
+    }
+
+    protected function _updateSessionData($updates)
+    {
+        $this->_setSessionData(array_merge($this->_getSessionData(), $updates));
     }
 
     public static function getPasswordHash($password)
@@ -58,7 +103,7 @@ class Auth
      */
     public static function getLoggedInUser()
     {
-        $userId = self::_initSession()['userId'] ?? null;
+        $userId = self::getInstance()->_getSessionData()['userId'] ?? null;
         return $userId ? User::getInstance()->getRowById($userId) : null;
     }
 
@@ -93,12 +138,11 @@ class Auth
 
     public static function setLoggedInUserId($userId)
     {
-        self::_initSession()['userId'] = $userId;
+        self::getInstance()->_updateSessionData(['userId' => $userId]);
     }
 
     public static function login($email, $password)
     {
-        self::_initSession();
         $user = self::_getUserDataOrDie($email);
         if ($user->passwordHash !== self::getPasswordHash($password)) {
             throw new BadRequestException('Wrong password');

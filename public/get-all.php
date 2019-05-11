@@ -8,4 +8,4 @@ App::getInstance()->run(function() {
     return [
         'data' => Entity\AllEntities::getAllRows()
     ];
-});
+}, false);

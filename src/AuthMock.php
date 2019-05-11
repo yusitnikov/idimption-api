@@ -8,6 +8,7 @@ class AuthMock extends Auth
 
     protected function init()
     {
-        $this->_session = [];
+        $this->_sessionId = 0;
+        $this->_sessionData = [];
     }
 }

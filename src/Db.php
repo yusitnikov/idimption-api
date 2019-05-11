@@ -151,6 +151,16 @@ class Db
     }
 
     /**
+     * @param string $sql
+     * @return mixed|null
+     * @throws DbException
+     */
+    public function selectValue($sql)
+    {
+        return $this->selectRow($sql, false)[0] ?? null;
+    }
+
+    /**
      * Just executes the query, without any additional hooks
      *
      * @param string $sql
