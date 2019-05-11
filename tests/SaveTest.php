@@ -68,6 +68,8 @@ class SaveTest extends BaseTest
                 'updatedAt' => $this->_appMock->getStartTime(),
                 'description' => '',
                 'statusId' => DbMock::STATUS_NEEDS_REVIEW_ID,
+                'isProject' => false,
+                'projectId' => null,
             ],
         ], $this->_dbMock->allEntities['idea']);
     }
@@ -115,6 +117,8 @@ class SaveTest extends BaseTest
                 'updatedAt' => $this->_appMock->getStartTime(),
                 'description' => '',
                 'statusId' => DbMock::STATUS_NEEDS_REVIEW_ID,
+                'isProject' => false,
+                'projectId' => null,
             ],
         ], $this->_dbMock->allEntities['idea']);
         Assert::assertEquals([

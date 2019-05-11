@@ -6,12 +6,18 @@ use Idimption\App;
 
 class Idea extends BaseEntity
 {
-    use ReferenceIdFieldTrait, UserIdFieldTrait, DateTimeFieldsTrait, CommonTextFieldsTrait, StatusIdFieldTrait;
+    use ReferenceIdFieldTrait, UserIdFieldTrait, DateTimeFieldsTrait, CommonTextFieldsTrait, StatusIdFieldTrait, ProjectIdFieldTrait;
 
     /**
      * @var double|null
      */
     public $priority;
+
+    /**
+     * @var bool
+     * @format "project": true, "idea": false
+     */
+    public $isProject = false;
 
     public function __construct($data = [])
     {
@@ -20,7 +26,7 @@ class Idea extends BaseEntity
 
     public function getEntityName(User $recipient = null)
     {
-        return ($recipient && $recipient->id === $this->userId ? 'your ' : '') . 'idea';
+        return ($recipient && $recipient->id === $this->userId ? 'your ' : '') . ($this->isProject ? 'project' : 'idea');
     }
 
     public function allowAnonymousCreate()
@@ -56,6 +62,17 @@ class Idea extends BaseEntity
         }
         if ($ideaSubscription) {
             $reasons[] = 'the idea';
+        }
+
+        $project = $this->getProject();
+        if ($project) {
+            $projectSubscription = IdeaSubscription::getInstance()->getUserSubscriptionForObject($user, $project);
+            if ($projectSubscription === false) {
+                return false;
+            }
+            if ($projectSubscription) {
+                $reasons[] = 'the project';
+            }
         }
 
         foreach (IdeaTag::getInstance()->getRowsByIdeaId($this->id) as $ideaTag) {
@@ -101,6 +118,10 @@ class Idea extends BaseEntity
         $text = '';
         $text .= $this->formatCommonTextFieldsChange($change);
         $text .= $this->formatStatusChange($change);
+        if ($change->action === EntityUpdateAction::UPDATE) {
+            $text .= $this->formatChangeField($change, 'isProject', 'Type');
+        }
+        $text .= $this->formatProjectChange($change);
         $text .= $this->formatForeignTableChanges($change, IdeaTag::class, 'Tags');
         $text .= $this->formatForeignTableChanges($change, IdeaCategory::class, 'Categories');
         $text .= $this->formatForeignTableChanges($change, IdeaRelation::class, 'Relations');

@@ -56,7 +56,12 @@ class RowChange implements JsonSerializable
         } else {
             /** @var BaseEntity|string $className */
             $className = get_class($this->updateRow);
-            return new $className();
+            /** @var BaseEntity $row */
+            $row = new $className();
+            foreach ($row as $fieldName => $value) {
+                $row->$fieldName = null;
+            }
+            return $row;
         }
     }
 

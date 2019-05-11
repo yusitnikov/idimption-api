@@ -415,6 +415,142 @@ class SubscribeToAllTest extends SubscriptionTest
         );
     }
 
+    /**
+     * @dataProvider getIsLoggedInData
+     * @param bool $isLoggedIn
+     */
+    public function testAddAsProject($isLoggedIn)
+    {
+        $this->toggleLogin($isLoggedIn);
+        $this->addSubscriberUser();
+
+        $guids = AllEntities::save([
+            [
+                'type' => 'add',
+                'tableName' => 'idea',
+                'row' => [
+                    'id' => 'fakeProjectId',
+                    'summary' => 'Test Project',
+                    'isProject' => true,
+                    'statusId' => DbMock::STATUS_NEEDS_REVIEW_ID,
+                ],
+            ],
+        ]);
+        $ideaId = $guids->substitute('fakeProjectId');
+        $this->_appMock->sendNotifications();
+        $expectedPerformer = $isLoggedIn ? 'Performer' : 'Guest';
+        Assert::assertEquals(
+            [
+                $this->buildExpectedNotification(
+                    [
+                        $expectedPerformer . ' added project Test Project',
+                        $expectedPerformer . ' added project <a href="http://localhost:8080/idea/' . $ideaId . '">Test Project</a>',
+                    ],
+                    self::EXPECTED_REASON,
+                    [
+                        Html::bold('Status:') . ' Needs review',
+                    ]
+                ),
+            ],
+            $this->_emailMock->popEmails()
+        );
+    }
+
+    public function testProject()
+    {
+        $this->addSubscriberUser();
+        $this->login();
+
+        $guids = AllEntities::save([
+            [
+                'type' => 'add',
+                'tableName' => 'idea',
+                'row' => [
+                    'id' => 'fakeIdeaId',
+                    'summary' => 'Test Idea Summary',
+                    'statusId' => DbMock::STATUS_NEEDS_REVIEW_ID,
+                    'projectId' => self::RELATION_IDEA_ID1,
+                ],
+            ],
+        ]);
+        $ideaId = $guids->substitute('fakeIdeaId');
+        $this->_appMock->sendNotifications();
+        Assert::assertEquals(
+            [
+                $this->buildExpectedNotification(
+                    [
+                        'Performer updated project Rely on me 1',
+                        'Performer updated project <a href="http://localhost:8080/idea/' . self::RELATION_IDEA_ID1 . '">Rely on me 1</a>',
+                    ],
+                    self::EXPECTED_REASON,
+                    Html::bold('Type:') . ' ' . Html::diffDelete('idea') . Html::diffAdd('project')
+                ),
+                $this->buildExpectedNotification(
+                    [
+                        'Performer added idea Test Idea Summary',
+                        'Performer added idea <a href="http://localhost:8080/idea/' . $ideaId . '">Test Idea Summary</a>',
+                    ],
+                    self::EXPECTED_REASON,
+                    [
+                        Html::bold('Status:') . ' Needs review',
+                        Html::bold('Project:') . ' <a href="http://localhost:8080/idea/' . self::RELATION_IDEA_ID1 . '">Rely on me 1</a>',
+                    ]
+                ),
+            ],
+            $this->_emailMock->popEmails()
+        );
+
+        AllEntities::save([
+            [
+                'type' => 'update',
+                'tableName' => 'idea',
+                'row' => [
+                    'id' => $ideaId,
+                    'projectId' => null,
+                ],
+            ],
+        ]);
+        $this->_appMock->sendNotifications();
+        Assert::assertEquals(
+            [
+                $this->buildExpectedNotification(
+                    [
+                        'Performer updated idea Test Idea Summary',
+                        'Performer updated idea <a href="http://localhost:8080/idea/' . $ideaId . '">Test Idea Summary</a>',
+                    ],
+                    self::EXPECTED_REASON,
+                    Html::bold('Project:') . ' ' . Html::diffDelete('<a href="http://localhost:8080/idea/' . self::RELATION_IDEA_ID1 . '">Rely on me 1</a>')
+                ),
+            ],
+            $this->_emailMock->popEmails()
+        );
+
+        AllEntities::save([
+            [
+                'type' => 'update',
+                'tableName' => 'idea',
+                'row' => [
+                    'id' => $ideaId,
+                    'isProject' => true,
+                ],
+            ],
+        ]);
+        $this->_appMock->sendNotifications();
+        Assert::assertEquals(
+            [
+                $this->buildExpectedNotification(
+                    [
+                        'Performer updated project Test Idea Summary',
+                        'Performer updated project <a href="http://localhost:8080/idea/' . $ideaId . '">Test Idea Summary</a>',
+                    ],
+                    self::EXPECTED_REASON,
+                    Html::bold('Type:') . ' ' . Html::diffDelete('idea') . Html::diffAdd('project')
+                ),
+            ],
+            $this->_emailMock->popEmails()
+        );
+    }
+
     // endregion
 
     // region IdeaComment, IdeaCommentMention
